@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 
 from app.application.events import ConnectionStatusUpdated, EventEmitter
-from app.infrastructure.instruments.ports import ResourceScannerPort
+from app.application.ports.instruments import ResourceScannerPort
 
 
 class ConnectionMonitor:

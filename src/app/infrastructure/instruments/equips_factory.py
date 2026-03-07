@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.application.ports.instruments import AwgPort, OscPort
 from app.domain.enums import ConnectionMode
 from app.domain.models import InstrumentEndpoint, InstrumentSetup
 from app.infrastructure.instruments.awg_adapter import EquipsAwgAdapter
 from app.infrastructure.instruments.osc_adapter import EquipsOscAdapter
-from app.infrastructure.instruments.ports import AwgPort, OscPort
 
 
 @dataclass(slots=True)

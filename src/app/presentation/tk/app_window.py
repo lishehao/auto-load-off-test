@@ -3,7 +3,7 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-from mapping import Mapping
+from app.shared.mapping import Mapping
 
 from app.presentation.tk.plot_widget import PlotWidget
 from app.presentation.tk.view_model import ViewModel
