@@ -24,6 +24,8 @@ This project is intentionally structured around extension seams rather than dire
 - `__data__/`
 - `__data__/measurement/`
 
+By default, runtime paths are rooted at the process working directory. Set `AUTO_LOAD_OFF_TEST_ROOT` to force a specific writable runtime location for packaged installs or lab workstations.
+
 Use `AppPaths` instead of recomputing `Path(__file__).parents[...]` in new code.
 
 ## Adding A New Instrument

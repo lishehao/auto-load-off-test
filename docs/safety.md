@@ -38,3 +38,7 @@ Before live measurement:
 5. Keep physical access to instrument front panels and emergency stop procedures.
 
 Automated tests use mocked ports and do not validate real hardware behavior.
+
+## Runtime File Location
+
+Settings and auto-save output default to the process working directory. Set `AUTO_LOAD_OFF_TEST_ROOT` to use an explicit writable runtime directory on lab machines or packaged installs.

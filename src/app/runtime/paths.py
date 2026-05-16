@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
+
+
+APP_ROOT_ENV = "AUTO_LOAD_OFF_TEST_ROOT"
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,7 +25,10 @@ class AppPaths:
 
     @classmethod
     def default(cls) -> "AppPaths":
-        return cls.from_root(Path(__file__).resolve().parents[3])
+        configured_root = os.environ.get(APP_ROOT_ENV)
+        if configured_root:
+            return cls.from_root(Path(configured_root))
+        return cls.from_root(Path.cwd())
 
     @property
     def settings_path(self) -> Path:
@@ -30,4 +37,3 @@ class AppPaths:
     @property
     def measurement_dir(self) -> Path:
         return self.data_dir / "measurement"
-

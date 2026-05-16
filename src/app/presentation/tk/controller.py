@@ -50,6 +50,7 @@ class TkController(EventEmitter):
         self._connection_target_lock = threading.Lock()
         self._awg_target_address = ""
         self._osc_target_address = ""
+        self._closing = False
 
         self._ui_handler = UiEventHandler(window=window, vm=vm)
         self._task_runner = SweepTaskRunner(
@@ -198,6 +199,7 @@ class TkController(EventEmitter):
         self._ui_handler.refresh_plot()
 
     def on_close(self) -> None:
+        self._closing = True
         self._monitor.stop()
         try:
             settings = vm_to_settings(self.vm)
@@ -206,18 +208,22 @@ class TkController(EventEmitter):
             pass
 
         self._task_runner.shutdown()
+        self._drain_event_queue()
         self.window.destroy()
 
     def _process_events(self) -> None:
+        self._drain_event_queue()
+        if not self._closing:
+            self._refresh_connection_targets()
+            self.window.after(100, self._process_events)
+
+    def _drain_event_queue(self) -> None:
         try:
             while True:
                 event = self._event_queue.get_nowait()
                 self._ui_handler.handle(event)
         except queue.Empty:
             pass
-        finally:
-            self._refresh_connection_targets()
-            self.window.after(100, self._process_events)
 
     def _refresh_connection_targets(self, settings=None) -> None:
         try:
