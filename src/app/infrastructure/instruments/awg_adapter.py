@@ -1,23 +1,20 @@
 from __future__ import annotations
 
+from app.infrastructure.instruments.vendor_gateway import create_vendor_instrument
+
+
 class EquipsAwgAdapter:
     def __init__(self, model: str, visa_address: str) -> None:
-        try:
-            from equips import inst_mapping
-        except ModuleNotFoundError as exc:
-            raise RuntimeError(
-                "Missing runtime dependency: pyvisa/equips is required for instrument access"
-            ) from exc
-
-        if model not in inst_mapping:
-            raise ValueError(f"Unsupported AWG model: {model}")
-        self._inst = inst_mapping[model](name=model, visa_address=visa_address)
+        self._inst = create_vendor_instrument(model=model, visa_address=visa_address)
 
     def reset(self) -> None:
         self._inst.rst()
 
     def output_on(self, channel: int) -> None:
-        self._inst.set_on(ch=channel)
+        self._inst.set_on(on=True, ch=channel)
+
+    def output_off(self, channel: int) -> None:
+        self._inst.set_on(on=False, ch=channel)
 
     def set_impedance(self, mode: str, channel: int) -> None:
         self._inst.set_imp(imp=mode, ch=channel)

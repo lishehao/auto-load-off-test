@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from app.application.ports.persistence import SettingsRepository
 from app.domain.models import AppSettings
-from app.infrastructure.persistence.repository_ports import SettingsRepository
 
 
 class SettingsUseCase:

@@ -91,7 +91,10 @@ def apply_reference_to_point(point: SweepPoint, ref_value: complex | float, use_
         else:
             raw = complex(point.gain_linear, 0.0)
 
-        corrected = raw / complex(ref_value)
+        ref_complex = complex(ref_value)
+        if abs(ref_complex) < eps:
+            ref_complex = complex(eps, 0.0)
+        corrected = raw / ref_complex
         gain_linear = float(np.abs(corrected))
         gain_db = float(20.0 * np.log10(max(gain_linear, eps)))
         phase_deg = float(np.degrees(np.angle(corrected)))

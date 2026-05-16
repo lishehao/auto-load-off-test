@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tkinter as tk
 
-from mapping import Mapping
+from app.shared.mapping import Mapping
 
 
 class ViewModel:

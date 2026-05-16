@@ -1,68 +1,136 @@
-# LoadoffTest (Decoupled Architecture)
+# Auto-Load-off-Test
 
-LoadoffTest is a Python desktop tool for AWG/OSC sweep measurement and calibration.
+[![CI](https://github.com/lishehao-ctrl/Auto-Load-off-Test/actions/workflows/ci.yml/badge.svg)](https://github.com/lishehao-ctrl/Auto-Load-off-Test/actions/workflows/ci.yml)
 
-This version is fully refactored into a layered architecture:
+Auto-Load-off-Test is a local Python desktop tool for AWG/oscilloscope sweep measurement, calibration, plotting, and data export.
 
-- `presentation` (Tkinter UI only)
-- `application` (use cases and event flow)
-- `domain` (pure business models and algorithms)
-- `infrastructure` (instrument adapters and persistence)
+It turns a repetitive manual lab workflow into a layered application:
 
-## Project Layout
+- configure an arbitrary waveform generator (AWG)
+- configure oscilloscope acquisition channels
+- sweep frequency points
+- measure gain and optional phase
+- apply reference calibration
+- export MAT/CSV/TXT data and optional plot images
+
+## Why It Exists
+
+Manual AWG/oscilloscope sweep measurements are repetitive and easy to misconfigure. This project separates the workflow into testable layers so the sweep math, signal processing, settings serialization, and use-case flow can be verified without physical instruments.
+
+## Architecture
 
 ```text
 src/
   main.py
   app/
-    presentation/tk/
-    application/
-    domain/
-    infrastructure/
+    bootstrap.py             desktop composition root
+    runtime/                 runtime paths and environment helpers
+    presentation/tk/        Tkinter UI and plotting
+    application/            use cases, DTOs, events, ports
+    domain/                 pure models, validation, sweep math, DSP
+    infrastructure/         instrument adapters and persistence
+  equips.py                 legacy vendor/instrument compatibility layer
 ```
 
-Legacy coupled modules (`src/ui.py`, `src/test.py`, `src/channel.py`, `src/deviceMng.py`) are removed.
+```mermaid
+flowchart LR
+  UI["Tkinter UI"] --> APP["Application Use Cases"]
+  APP --> DOMAIN["Domain Models / Sweep / DSP"]
+  APP --> PORTS["Instrument Ports"]
+  PORTS --> INFRA["AWG / OSC Adapters"]
+  INFRA --> LEGACY["equips.py Vendor Layer"]
+  APP --> PERSIST["Settings + Measurement Persistence"]
+```
 
-## Run
+The UI and use cases do not call `src/equips.py` directly. That file is treated as a legacy vendor compatibility layer and is wrapped by infrastructure adapters.
+
+## Requirements
+
+- Python 3.10 or newer
+- Tkinter, usually included with the Python installer on macOS/Windows
+- For live instrument use:
+  - supported AWG and oscilloscope models from `src/app/shared/mapping.py`
+  - VISA access through `pyvisa` / `pyvisa-py`
+  - correct LAN/VISA addresses for the instruments
+
+Automated tests do not require AWG/OSC hardware.
+
+## Install
 
 ```bash
-python3 src/main.py
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-## Configuration
+For development tooling:
 
-Settings are stored in JSON:
+```bash
+python -m pip install -r requirements-dev.txt
+```
 
-- `__config__/settings.json`
+The project also exposes an optional console script when installed as a package:
 
-Schema version is tracked in the settings payload (`schema_version`).
+```bash
+python -m pip install -e .
+auto-load-off-test
+```
+
+## Run The Desktop App
+
+```bash
+python src/main.py
+```
+
+Settings are stored at:
+
+```text
+__config__/settings.json
+```
+
+## Run Tests Without Hardware
+
+```bash
+PYTHONPATH=src python -m unittest discover -s tests
+```
+
+The test suite uses pure domain tests and mocked instrument ports. It covers sweep generation, signal processing, settings serialization, measurement I/O, start-sweep event flow, and the sweep task runner.
 
 ## Output Files
 
-Save operation writes:
+Saving a measurement writes:
 
 - `*.mat`
 - `*.csv`
 - `*.txt`
-- plot images (`*_gain.png`, `*_gain_db.png`) when figure handles are provided
+- `*_gain.png` and `*_gain_db.png` when plot figures are supplied
 
-## Testing
+Auto-save writes timestamped files under:
 
-Run automated tests:
-
-```bash
-python3 -m unittest discover -s tests
+```text
+__data__/measurement/
 ```
 
-Tests cover:
+Example result generated from `demo_data/Demo(2).mat`:
 
-- domain sweep generation
-- signal processing behavior
-- start-sweep use case event flow with mock ports
-- settings repository round-trip
+![Demo sweep result](docs/images/sweep_result.png)
 
-## Notes
+## Safety Notes
 
-- The application remains local single-process.
-- No HTTP backend is introduced.
-- UI thread safety is enforced through event queue dispatch (`Tk.after`).
+This is a local lab automation tool, not a certified production test platform. Operators are responsible for confirming the connected instrument model, address, voltage range, frequency range, impedance, coupling, and device-under-test limits before running a live sweep.
+
+See [docs/safety.md](docs/safety.md) for stop/shutdown behavior and hardware assumptions.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Operator Guide](docs/operator_guide.md)
+- [Safety Notes](docs/safety.md)
+- [Extending The Application](docs/extending.md)
+- [Case Study](docs/case_study.md)
+- [Demo Data](demo_data/README.md)
+
+## Project Status
+
+The refactored app is local, single-process, and hardware-adapter based. Its strongest engineering signal is the separation between UI, use-case orchestration, pure domain logic, persistence, and instrument side effects.

@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "auto-load-off-test"
+version = "0.1.0"
+description = "Desktop AWG/oscilloscope sweep measurement automation tool."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.23",
+  "scipy>=1.10",
+  "matplotlib>=3.7",
+  "mplcursors>=0.5",
+  "pyvisa>=1.13",
+  "pyserial>=3.5",
+  "pyvisa-py>=0.7",
+]
+
+[project.scripts]
+auto-load-off-test = "main:main"
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.4",
+]
+build = [
+  "pyinstaller>=6",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = ["main", "equips", "mapping", "cvtTools"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"

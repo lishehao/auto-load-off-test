@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.application.dto import LoadedMeasurement
-from app.infrastructure.persistence.repository_ports import MeasurementRepository
+from app.application.ports.persistence import MeasurementRepository
 
 
 class LoadMeasurementUseCase:

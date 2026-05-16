@@ -2,18 +2,12 @@ from __future__ import annotations
 
 import numpy as np
 
+from app.infrastructure.instruments.vendor_gateway import create_vendor_instrument
+
+
 class EquipsOscAdapter:
     def __init__(self, model: str, visa_address: str) -> None:
-        try:
-            from equips import inst_mapping
-        except ModuleNotFoundError as exc:
-            raise RuntimeError(
-                "Missing runtime dependency: pyvisa/equips is required for instrument access"
-            ) from exc
-
-        if model not in inst_mapping:
-            raise ValueError(f"Unsupported OSC model: {model}")
-        self._inst = inst_mapping[model](name=model, visa_address=visa_address)
+        self._inst = create_vendor_instrument(model=model, visa_address=visa_address)
 
     def reset(self) -> None:
         self._inst.rst()

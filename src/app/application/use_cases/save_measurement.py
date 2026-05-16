@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from app.application.dto import SaveArtifacts, SaveTarget
+from app.application.ports.persistence import MeasurementRepository
 from app.domain.models import AppSettings, SweepResult
-from app.infrastructure.persistence.repository_ports import MeasurementRepository
 
 
 class SaveMeasurementUseCase:

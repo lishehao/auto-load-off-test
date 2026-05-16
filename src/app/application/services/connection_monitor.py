@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable
 
 from app.application.events import ConnectionStatusUpdated, EventEmitter
-from app.infrastructure.instruments.ports import ResourceScannerPort
+from app.application.ports.instruments import ResourceScannerPort
 
 
 class ConnectionMonitor:
@@ -34,6 +34,8 @@ class ConnectionMonitor:
 
     def stop(self) -> None:
         self._stop.set()
+        if self._thread and self._thread.is_alive() and threading.current_thread() is not self._thread:
+            self._thread.join(timeout=self._interval_s * 2)
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -41,8 +43,10 @@ class ConnectionMonitor:
             osc_connected = False
             try:
                 resources = self._scanner.list_resources()
-                awg_connected = self._get_awg_address() in resources if self._get_awg_address() else False
-                osc_connected = self._get_osc_address() in resources if self._get_osc_address() else False
+                awg_address = self._get_awg_address()
+                osc_address = self._get_osc_address()
+                awg_connected = awg_address in resources if awg_address else False
+                osc_connected = osc_address in resources if osc_address else False
             except Exception:
                 awg_connected = False
                 osc_connected = False

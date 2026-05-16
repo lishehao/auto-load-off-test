@@ -1,13 +1,9 @@
-# Environment setup notes
-# cd C:\Users\15038\Desktop\HardWare\mm_report 
-# python -m venv venv
-# .\venv\Scripts\Activate.ps1
-# python issues.py
-# pip install requests PyGithub pyinstaller
-# pyinstaller --onefile --name mm_test.exe equips_v0.py
+"""Legacy vendor/instrument compatibility layer.
 
-"""equip driver Module deal with base equips operation.
-  new equips are encouraged to be inherited from bATEinst_base
+The refactored application does not call this module from UI or use cases.
+It is wrapped by infrastructure adapters under ``app.infrastructure.instruments``.
+Keep hardware-command changes conservative unless they can be verified on real
+instruments.
 """
 
 import time

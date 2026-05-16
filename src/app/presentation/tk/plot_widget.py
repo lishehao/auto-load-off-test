@@ -6,8 +6,8 @@ import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from cvtTools import CvtTools
-from mapping import Mapping
+from app.shared.cvt_tools import CvtTools
+from app.shared.mapping import Mapping
 
 from app.domain.models import SweepResult
 

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from app.application.ports.persistence import ReferenceRepository
 from app.domain.calibration import build_reference_interpolator
 from app.domain.models import ReferenceCurve
-from app.infrastructure.persistence.repository_ports import ReferenceRepository
 
 
 class LoadReferenceUseCase:

@@ -43,6 +43,9 @@ class MockAwg:
     def output_on(self, channel: int) -> None:
         _ = channel
 
+    def output_off(self, channel: int) -> None:
+        _ = channel
+
     def set_impedance(self, mode: str, channel: int) -> None:
         _ = (mode, channel)
 
