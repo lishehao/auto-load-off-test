@@ -18,9 +18,11 @@ class MeasurementLoader:
         if suffix == ".mat":
             payload = loadmat(path)
             freq = self._get_array(payload, ["freq_hz", "freq"])  # type: ignore[arg-type]
-            gain_linear = self._get_array(payload, ["gain_linear", "gain_raw"])
             gain_db = self._get_array(payload, ["gain_db", "gain_db_raw", "gain_db_corr"])
-            phase = self._get_array(payload, ["phase_deg", "phase", "phase_deg_corr"], required=False)
+            gain_linear = self._get_array(payload, ["gain_linear", "gain_raw"], required=False)
+            if gain_linear is None:
+                gain_linear = np.power(10.0, gain_db / 20.0)
+            phase = self._get_array(payload, ["phase_deg", "phase", "phase_deg_corr", "phase_corr"], required=False)
         elif suffix == ".csv":
             freq_l: list[float] = []
             gain_l: list[float] = []
@@ -32,12 +34,13 @@ class MeasurementLoader:
                     freq_l.append(float(row.get("freq_hz", "0") or 0.0))
                     gain_l.append(float(row.get("gain_linear", "0") or 0.0))
                     gain_db_l.append(float(row.get("gain_db", "0") or 0.0))
-                    if row.get("phase_deg") not in (None, ""):
-                        phase_l.append(float(row["phase_deg"]))
+                    phase_value = row.get("phase_deg")
+                    phase_l.append(float(phase_value) if phase_value not in (None, "") else np.nan)
             freq = np.array(freq_l, dtype=float)
             gain_linear = np.array(gain_l, dtype=float)
             gain_db = np.array(gain_db_l, dtype=float)
-            phase = np.array(phase_l, dtype=float) if phase_l else None
+            phase_values = np.array(phase_l, dtype=float) if phase_l else None
+            phase = phase_values if phase_values is not None and np.any(~np.isnan(phase_values)) else None
             payload = {"freq_hz": freq, "gain_linear": gain_linear, "gain_db": gain_db}
             if phase is not None:
                 payload["phase_deg"] = phase
@@ -46,7 +49,7 @@ class MeasurementLoader:
 
         points: list[SweepPoint] = []
         for idx in range(len(freq)):
-            phase_deg = float(phase[idx]) if phase is not None and idx < len(phase) else None
+            phase_deg = _optional_phase(phase, idx)
             points.append(
                 SweepPoint(
                     freq_hz=float(freq[idx]),
@@ -76,7 +79,16 @@ class MeasurementLoader:
         for key in keys:
             value = payload.get(key)
             if isinstance(value, np.ndarray):
-                return np.asarray(value, dtype=float).squeeze()
+                return np.atleast_1d(np.asarray(value, dtype=float).squeeze())
         if required:
             raise ValueError(f"Missing required keys: {keys}")
         return None
+
+
+def _optional_phase(phase: np.ndarray | None, idx: int) -> float | None:
+    if phase is None or idx >= len(phase):
+        return None
+    value = float(phase[idx])
+    if np.isnan(value):
+        return None
+    return value

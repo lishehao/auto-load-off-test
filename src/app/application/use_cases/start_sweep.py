@@ -5,7 +5,6 @@ import time
 from datetime import datetime, timezone
 
 from app.application.dto import StartSweepCommand
-from app.application.dto import StartSweepCommand
 from app.application.events import (
     EventEmitter,
     SweepCompleted,

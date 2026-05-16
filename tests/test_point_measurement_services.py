@@ -121,6 +121,24 @@ class PointMeasurementServiceTests(unittest.TestCase):
         self.assertAlmostEqual(corrected.gain_linear, 1.0, delta=1e-6)
         self.assertAlmostEqual(corrected.phase_deg or 0.0, 20.0, delta=1e-6)
 
+    def test_calibration_applier_handles_zero_reference(self) -> None:
+        point = SweepPoint(
+            freq_hz=5_000.0,
+            gain_linear=1.0,
+            gain_db=0.0,
+            phase_deg=0.0,
+            gain_complex=1.0 + 0.0j,
+        )
+        cmd = StartSweepCommand(
+            settings=build_settings(correction_mode=CorrectionMode.DUAL, trigger_mode=TriggerMode.TRIGGERED),
+            calibration_enabled=True,
+            reference_interpolator=lambda _xs: np.array([0.0 + 0.0j]),
+        )
+
+        corrected = self.calibration.apply(point=point, cmd=cmd)
+        self.assertTrue(math.isfinite(corrected.gain_linear))
+        self.assertTrue(math.isfinite(corrected.gain_db))
+
 
 if __name__ == "__main__":
     unittest.main()

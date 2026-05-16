@@ -8,6 +8,7 @@ from app.domain.validators import validate_settings
 from app.infrastructure.persistence.file_store import FileStore
 from app.infrastructure.persistence.settings_defaults import DefaultSettingsFactory
 from app.infrastructure.persistence.settings_serializer import SettingsSerializer
+from app.runtime.paths import AppPaths
 
 
 class JsonSettingsRepository:
@@ -19,8 +20,7 @@ class JsonSettingsRepository:
         serializer: SettingsSerializer | None = None,
         file_store: FileStore | None = None,
     ) -> None:
-        root = Path(__file__).resolve().parents[4]
-        default_path = root / "__config__" / "settings.json"
+        default_path = AppPaths.default().settings_path
 
         self._serializer = serializer or SettingsSerializer()
         self._defaults_factory = defaults_factory or DefaultSettingsFactory()

@@ -49,7 +49,7 @@ class MeasurementExporter:
                         float(freq[idx]),
                         float(gain_linear[idx]) if idx < len(gain_linear) else "",
                         float(gain_db[idx]) if idx < len(gain_db) else "",
-                        float(phase[idx]) if idx < len(phase) else "",
+                        _optional_float(phase, idx),
                     ]
                 )
 
@@ -81,3 +81,12 @@ class MeasurementExporter:
             gain_plot_path=gain_plot_path,
             db_plot_path=db_plot_path,
         )
+
+
+def _optional_float(values: np.ndarray, idx: int) -> float | str:
+    if idx >= len(values):
+        return ""
+    value = float(values[idx])
+    if np.isnan(value):
+        return ""
+    return value

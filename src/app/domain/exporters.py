@@ -12,8 +12,18 @@ def result_to_arrays(result: SweepResult) -> dict[str, np.ndarray]:
     gain = np.array([p.gain_linear for p in result.points], dtype=float)
     gain_db = np.array([p.gain_db for p in result.points], dtype=float)
 
-    phase_values = [p.phase_deg for p in result.points if p.phase_deg is not None]
-    complex_values = [p.gain_complex for p in result.points if p.gain_complex is not None]
+    phase_values = np.array(
+        [np.nan if p.phase_deg is None else float(p.phase_deg) for p in result.points],
+        dtype=float,
+    )
+    complex_real = np.array(
+        [np.nan if p.gain_complex is None else float(p.gain_complex.real) for p in result.points],
+        dtype=float,
+    )
+    complex_imag = np.array(
+        [np.nan if p.gain_complex is None else float(p.gain_complex.imag) for p in result.points],
+        dtype=float,
+    )
 
     arrays: dict[str, np.ndarray] = {
         "freq_hz": freq,
@@ -21,11 +31,11 @@ def result_to_arrays(result: SweepResult) -> dict[str, np.ndarray]:
         "gain_db": gain_db,
     }
 
-    if phase_values:
-        arrays["phase_deg"] = np.array(phase_values, dtype=float)
-    if complex_values:
-        arrays["gain_complex_real"] = np.array([v.real for v in complex_values], dtype=float)
-        arrays["gain_complex_imag"] = np.array([v.imag for v in complex_values], dtype=float)
+    if np.any(~np.isnan(phase_values)):
+        arrays["phase_deg"] = phase_values
+    if np.any(~np.isnan(complex_real)) or np.any(~np.isnan(complex_imag)):
+        arrays["gain_complex_real"] = complex_real
+        arrays["gain_complex_imag"] = complex_imag
     return arrays
 
 

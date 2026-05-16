@@ -1,21 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
-from app.application.ports.instruments import AwgPort, OscPort
+from app.application.ports.instruments import InstrumentPorts
 from app.domain.enums import ConnectionMode
 from app.domain.models import InstrumentEndpoint, InstrumentSetup
 from app.infrastructure.instruments.awg_adapter import EquipsAwgAdapter
 from app.infrastructure.instruments.osc_adapter import EquipsOscAdapter
-
-
-@dataclass(slots=True)
-class InstrumentPorts:
-    awg: AwgPort
-    osc: OscPort
-    awg_address: str
-    osc_address: str
-
 
 
 def resolve_visa_address(endpoint: InstrumentEndpoint) -> str:

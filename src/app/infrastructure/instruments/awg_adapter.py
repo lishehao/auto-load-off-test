@@ -11,7 +11,10 @@ class EquipsAwgAdapter:
         self._inst.rst()
 
     def output_on(self, channel: int) -> None:
-        self._inst.set_on(ch=channel)
+        self._inst.set_on(on=True, ch=channel)
+
+    def output_off(self, channel: int) -> None:
+        self._inst.set_on(on=False, ch=channel)
 
     def set_impedance(self, mode: str, channel: int) -> None:
         self._inst.set_imp(imp=mode, ch=channel)

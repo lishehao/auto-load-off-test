@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Protocol
 
 import numpy as np
+
+from app.domain.models import InstrumentSetup
 
 
 class AwgPort(Protocol):
     def reset(self) -> None: ...
     def output_on(self, channel: int) -> None: ...
+    def output_off(self, channel: int) -> None: ...
     def set_impedance(self, mode: str, channel: int) -> None: ...
     def set_frequency(self, hz: float, channel: int) -> None: ...
     def get_frequency(self, channel: int) -> float: ...
@@ -34,3 +39,14 @@ class OscPort(Protocol):
 
 class ResourceScannerPort(Protocol):
     def list_resources(self) -> tuple[str, ...]: ...
+
+
+@dataclass(slots=True)
+class InstrumentPorts:
+    awg: AwgPort
+    osc: OscPort
+    awg_address: str
+    osc_address: str
+
+
+InstrumentPortsFactory = Callable[[InstrumentSetup], InstrumentPorts]

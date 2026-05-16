@@ -1,22 +1,24 @@
 from __future__ import annotations
 
 import queue
-from pathlib import Path
+import threading
+from collections.abc import Callable
 
 from app.application.events import EventEmitter
+from app.application.services.sweep_task_runner import SweepTaskRunner
 from app.application.services.connection_monitor import ConnectionMonitor
 from app.application.use_cases.load_measurement import LoadMeasurementUseCase
 from app.application.use_cases.load_reference import LoadReferenceUseCase
 from app.application.use_cases.save_measurement import SaveMeasurementUseCase
 from app.application.use_cases.settings_use_case import SettingsUseCase
-from app.application.ports.instruments import ResourceScannerPort
+from app.application.ports.instruments import InstrumentPortsFactory, ResourceScannerPort
+from app.domain.models import InstrumentEndpoint
 from app.presentation.tk import dialogs
 from app.presentation.tk.app_window import AppWindow
 from app.presentation.tk.mapper import settings_to_vm, vm_to_settings
-from app.presentation.tk.sweep_task_runner import SweepTaskRunner
 from app.presentation.tk.ui_event_handler import UiEventHandler
 from app.presentation.tk.view_model import ViewModel
-from app.infrastructure.instruments.equips_factory import resolve_visa_address
+from app.runtime.paths import AppPaths
 
 
 class TkController(EventEmitter):
@@ -30,6 +32,9 @@ class TkController(EventEmitter):
         load_measurement_use_case: LoadMeasurementUseCase,
         load_reference_use_case: LoadReferenceUseCase,
         scanner: ResourceScannerPort,
+        ports_factory: InstrumentPortsFactory,
+        resolve_address: Callable[[InstrumentEndpoint], str],
+        paths: AppPaths | None = None,
     ) -> None:
         self.window = window
         self.vm = vm
@@ -40,18 +45,23 @@ class TkController(EventEmitter):
 
         self._event_queue: queue.Queue[object] = queue.Queue()
         self._reference_interpolator = None
-        self._root_dir = Path(__file__).resolve().parents[4]
+        self._paths = paths or AppPaths.default()
+        self._resolve_address = resolve_address
+        self._connection_target_lock = threading.Lock()
+        self._awg_target_address = ""
+        self._osc_target_address = ""
 
         self._ui_handler = UiEventHandler(window=window, vm=vm)
         self._task_runner = SweepTaskRunner(
             emitter=self,
             save_measurement_use_case=save_measurement_use_case,
-            root_dir=self._root_dir,
+            auto_save_dir=self._paths.measurement_dir,
+            ports_factory=ports_factory,
         )
         self._monitor = ConnectionMonitor(
             scanner=scanner,
-            get_awg_address=self._get_awg_target_address,
-            get_osc_address=self._get_osc_target_address,
+            get_awg_address=self._get_cached_awg_target_address,
+            get_osc_address=self._get_cached_osc_target_address,
             emitter=self,
         )
 
@@ -75,6 +85,7 @@ class TkController(EventEmitter):
         except Exception as exc:  # noqa: BLE001
             dialogs.show_warning(self.window, f"Failed to load settings: {exc}")
 
+        self._refresh_connection_targets()
         self._monitor.start()
         self.window.after(100, self._process_events)
         self.on_figure_change()
@@ -89,6 +100,7 @@ class TkController(EventEmitter):
 
         try:
             settings = vm_to_settings(self.vm)
+            self._refresh_connection_targets(settings)
             self._task_runner.start(
                 settings=settings,
                 calibration_enabled=bool(self.vm.calibration_enabled.get()),
@@ -105,6 +117,7 @@ class TkController(EventEmitter):
         try:
             settings = vm_to_settings(self.vm)
             self.settings_use_case.save(settings)
+            self._refresh_connection_targets(settings)
             dialogs.show_info(self.window, "Settings saved")
         except Exception as exc:  # noqa: BLE001
             dialogs.show_warning(self.window, f"Failed to save settings: {exc}")
@@ -113,6 +126,7 @@ class TkController(EventEmitter):
         try:
             settings = self.settings_use_case.load()
             settings_to_vm(settings, self.vm)
+            self._refresh_connection_targets(settings)
             self.on_figure_change()
             self.on_mag_phase_change()
             dialogs.show_info(self.window, "Settings loaded")
@@ -126,7 +140,7 @@ class TkController(EventEmitter):
 
         fp = dialogs.ask_save_file(
             title="Save measurement",
-            initial_dir=self._root_dir / "__data__",
+            initial_dir=self._paths.data_dir,
             initial_name="measurement",
             filetypes=[("MAT files", "*.mat"), ("All files", "*.*")],
         )
@@ -147,7 +161,7 @@ class TkController(EventEmitter):
     def on_load_data(self) -> None:
         fp = dialogs.ask_open_file(
             title="Load measurement",
-            initial_dir=self._root_dir / "__data__",
+            initial_dir=self._paths.data_dir,
             filetypes=[("Measurement", "*.mat *.csv"), ("All files", "*.*")],
         )
         if fp is None:
@@ -163,7 +177,7 @@ class TkController(EventEmitter):
     def on_load_reference(self) -> None:
         fp = dialogs.ask_open_file(
             title="Load reference",
-            initial_dir=self._root_dir / "__data__",
+            initial_dir=self._paths.data_dir,
             filetypes=[("MAT files", "*.mat"), ("All files", "*.*")],
         )
         if fp is None:
@@ -202,21 +216,29 @@ class TkController(EventEmitter):
         except queue.Empty:
             pass
         finally:
+            self._refresh_connection_targets()
             self.window.after(100, self._process_events)
 
-    def _get_awg_target_address(self) -> str:
+    def _refresh_connection_targets(self, settings=None) -> None:
         try:
-            settings = vm_to_settings(self.vm)
-            return resolve_visa_address(settings.setup.awg)
+            settings = settings or vm_to_settings(self.vm)
+            awg_address = self._resolve_address(settings.setup.awg)
+            osc_address = self._resolve_address(settings.setup.osc)
         except Exception:
-            return ""
+            awg_address = ""
+            osc_address = ""
 
-    def _get_osc_target_address(self) -> str:
-        try:
-            settings = vm_to_settings(self.vm)
-            return resolve_visa_address(settings.setup.osc)
-        except Exception:
-            return ""
+        with self._connection_target_lock:
+            self._awg_target_address = awg_address
+            self._osc_target_address = osc_address
+
+    def _get_cached_awg_target_address(self) -> str:
+        with self._connection_target_lock:
+            return self._awg_target_address
+
+    def _get_cached_osc_target_address(self) -> str:
+        with self._connection_target_lock:
+            return self._osc_target_address
 
 
 def dialogs_to_target(path, window: AppWindow):
