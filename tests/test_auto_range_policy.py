@@ -49,6 +49,18 @@ class AutoRangePolicyTests(unittest.TestCase):
         self.assertTrue(decision.changed)
         self.assertAlmostEqual(decision.target_offset_v, 0.45, delta=1e-6)
 
+    def test_empty_or_invalid_range_keeps_current_settings(self) -> None:
+        decision = self.policy.decide(
+            volts=np.array([]),
+            current_range_v=0.0,
+            current_offset_v=0.25,
+            requested_offset_v=0.0,
+        )
+
+        self.assertFalse(decision.changed)
+        self.assertEqual(decision.target_range_v, 0.0)
+        self.assertEqual(decision.target_offset_v, 0.25)
+
 
 if __name__ == "__main__":
     unittest.main()

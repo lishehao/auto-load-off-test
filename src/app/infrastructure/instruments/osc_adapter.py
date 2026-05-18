@@ -54,7 +54,4 @@ class EquipsOscAdapter:
         return float(self._inst.get_sample_rate())
 
     def close(self) -> None:
-        try:
-            self._inst.inst_close()
-        except Exception:
-            pass
+        self._inst.inst_close()

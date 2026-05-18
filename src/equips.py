@@ -88,8 +88,6 @@ class bATEinst_base(object):
         if self.Inst:
             try:
                 self.Inst.close()
-            except:
-                pass
             finally:
                 self.Inst = None
             

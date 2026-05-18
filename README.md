@@ -51,6 +51,7 @@ The UI and use cases do not call `src/equips.py` directly. That file is treated 
 - For live instrument use:
   - supported AWG and oscilloscope models from `src/app/shared/mapping.py`
   - VISA access through `pyvisa` / `pyvisa-py`
+  - a working VISA backend for the connection type, such as NI-VISA / Keysight IO Libraries for LAN/USB/GPIB or the extra USB/GPIB libraries required by `pyvisa-py`
   - correct LAN/VISA addresses for the instruments
 
 Automated tests do not require AWG/OSC hardware.
@@ -83,11 +84,13 @@ auto-load-off-test
 python src/main.py
 ```
 
-Settings are stored at:
+Settings and auto-save data are rooted at the process working directory unless `AUTO_LOAD_OFF_TEST_ROOT` is set. From the repo root, settings are stored at:
 
 ```text
 __config__/settings.json
 ```
+
+For packaged installs or lab workstations, set `AUTO_LOAD_OFF_TEST_ROOT` to an explicit writable directory so settings and `__data__/measurement/` do not move when the app is launched from a different shell directory.
 
 ## Run Tests Without Hardware
 
