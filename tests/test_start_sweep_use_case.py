@@ -10,7 +10,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from app.application.dto import StartSweepCommand
-from app.application.events import SweepCompleted, SweepProgress, SweepStarted, SweepStopped
+from app.application.events import SweepCompleted, SweepFailed, SweepProgress, SweepStarted, SweepStopped
 from app.application.use_cases.start_sweep import StartSweepUseCase
 from app.domain.enums import (
     ConnectionMode,
@@ -36,33 +36,34 @@ class MockAwg:
     def __init__(self) -> None:
         self.freq = 1_000.0
         self.amp = 1.0
+        self.calls: list[tuple] = []
 
     def reset(self) -> None:
-        return None
+        self.calls.append(("reset",))
 
     def output_on(self, channel: int) -> None:
-        _ = channel
+        self.calls.append(("output_on", channel))
 
     def output_off(self, channel: int) -> None:
-        _ = channel
+        self.calls.append(("output_off", channel))
 
     def set_impedance(self, mode: str, channel: int) -> None:
-        _ = (mode, channel)
+        self.calls.append(("set_impedance", mode, channel))
 
     def set_frequency(self, hz: float, channel: int) -> None:
-        _ = channel
+        self.calls.append(("set_frequency", hz, channel))
         self.freq = hz
 
     def get_frequency(self, channel: int) -> float:
-        _ = channel
+        self.calls.append(("get_frequency", channel))
         return self.freq
 
     def set_amplitude_vpp(self, vpp: float, channel: int) -> None:
-        _ = channel
+        self.calls.append(("set_amplitude_vpp", vpp, channel))
         self.amp = vpp
 
     def get_amplitude_vpp(self, channel: int) -> float:
-        _ = channel
+        self.calls.append(("get_amplitude_vpp", channel))
         return self.amp
 
     def close(self) -> None:
@@ -190,6 +191,60 @@ class StartSweepUseCaseTests(unittest.TestCase):
 
         self.assertTrue(any(isinstance(e, SweepStopped) for e in recorder.events))
         self.assertTrue(result.is_empty or len(result.points) >= 0)
+
+    def test_awg_output_waits_for_amplitude_and_frequency(self) -> None:
+        awg = MockAwg()
+        osc = MockOsc(awg)
+        stop_event = threading.Event()
+
+        use_case = StartSweepUseCase(awg=awg, osc=osc, stop_event=stop_event)
+        recorder = Recorder()
+
+        use_case.run(StartSweepCommand(settings=self._build_settings()), recorder)
+
+        first_output_on = awg.calls.index(("output_on", 1))
+        first_set_amp = awg.calls.index(("set_amplitude_vpp", 1.0, 1))
+        first_set_freq = awg.calls.index(("set_frequency", 1000.0, 1))
+        self.assertLess(first_set_amp, first_output_on)
+        self.assertLess(first_set_freq, first_output_on)
+
+    def test_validation_failure_emits_failed_event(self) -> None:
+        settings = self._build_settings()
+        settings.setup.osc_settings.coupling = CouplingMode.AC
+        awg = MockAwg()
+        osc = MockOsc(awg)
+        use_case = StartSweepUseCase(awg=awg, osc=osc, stop_event=threading.Event())
+        recorder = Recorder()
+
+        result = use_case.run(StartSweepCommand(settings=settings), recorder)
+
+        failures = [event for event in recorder.events if isinstance(event, SweepFailed)]
+        self.assertTrue(result.is_empty)
+        self.assertEqual(failures[0].error_code, "VALIDATION")
+        self.assertIn("ValidationError", failures[0].message)
+
+    def test_runtime_failure_emits_exception_type(self) -> None:
+        class FailingConfigurator:
+            def configure(self, settings):
+                _ = settings
+                raise RuntimeError("configure failed")
+
+        awg = MockAwg()
+        osc = MockOsc(awg)
+        use_case = StartSweepUseCase(
+            awg=awg,
+            osc=osc,
+            stop_event=threading.Event(),
+            configurator=FailingConfigurator(),
+        )
+        recorder = Recorder()
+
+        result = use_case.run(StartSweepCommand(settings=self._build_settings()), recorder)
+
+        failures = [event for event in recorder.events if isinstance(event, SweepFailed)]
+        self.assertTrue(result.is_empty)
+        self.assertEqual(failures[0].error_code, "SWEEP_RUNTIME")
+        self.assertIn("RuntimeError", failures[0].message)
 
 
 if __name__ == "__main__":

@@ -56,6 +56,7 @@ The files in `demo_data/` can be loaded through the measurement loader path to i
 
 - No resources visible: check VISA backend, LAN connectivity, USB/GPIB cable, or serial permissions.
 - Sweep fails immediately: verify model label, address, impedance/coupling combinations, and numeric settings.
+- Cleanup warning after Stop or window close: verify the AWG front-panel output state before touching the DUT or starting another sweep.
 - Flat or clipped waveform: reduce AWG amplitude or adjust oscilloscope range/offset.
 - Unexpected phase: verify reference channel, trigger mode, and cable/probe delays.
 - Save/load failure: confirm output directory permissions and supported file suffixes.

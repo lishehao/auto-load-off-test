@@ -21,7 +21,7 @@ class InstrumentConfigurator:
             self._awg.reset()
             self._osc.reset()
 
-        self._awg.output_on(awg_ch)
+        self._awg.output_off(awg_ch)
         self._awg.set_impedance(setup.awg_settings.impedance.value, awg_ch)
         self._awg.set_amplitude_vpp(setup.awg_settings.amplitude_vpp, awg_ch)
 

@@ -29,6 +29,7 @@ class WaveformAcquirer:
 
         warnings: list[SweepServiceWarning] = []
         awg_ch = setup.channels.awg_ch
+        self._awg.output_off(awg_ch)
         self._awg.set_frequency(float(target_freq_hz), awg_ch)
         actual_freq = self._awg.get_frequency(awg_ch)
         if not np.isclose(actual_freq, target_freq_hz, atol=1e-3, rtol=5e-6):
@@ -58,6 +59,7 @@ class WaveformAcquirer:
 
         self._osc.set_timebase(window_s)
         triggered = run_mode.trigger_mode == TriggerMode.TRIGGERED
+        self._awg.output_on(awg_ch)
         self._osc.single_acquire(triggered=triggered)
 
         test_ch = setup.channels.osc_test_ch

@@ -29,7 +29,15 @@ def py_files(base: Path) -> list[Path]:
 
 class ArchitectureBoundaryTests(unittest.TestCase):
     def test_domain_stays_pure(self) -> None:
-        forbidden_prefixes = ("tkinter", "pyvisa", "serial", "matplotlib", "app.infrastructure", "app.presentation")
+        forbidden_prefixes = (
+            "tkinter",
+            "pyvisa",
+            "serial",
+            "matplotlib",
+            "equips",
+            "app.infrastructure",
+            "app.presentation",
+        )
         offenders = []
         for path in py_files(SRC_APP / "domain"):
             for module in imported_modules(path):
@@ -39,7 +47,14 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertEqual(offenders, [])
 
     def test_application_does_not_import_infrastructure_or_presentation(self) -> None:
-        forbidden_prefixes = ("app.infrastructure", "app.presentation")
+        forbidden_prefixes = (
+            "app.infrastructure",
+            "app.presentation",
+            "equips",
+            "pyvisa",
+            "serial",
+            "tkinter",
+        )
         offenders = []
         for path in py_files(SRC_APP / "application"):
             for module in imported_modules(path):
@@ -49,10 +64,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertEqual(offenders, [])
 
     def test_presentation_does_not_import_infrastructure(self) -> None:
+        forbidden_prefixes = ("app.infrastructure", "equips", "pyvisa", "serial")
         offenders = []
         for path in py_files(SRC_APP / "presentation"):
             for module in imported_modules(path):
-                if module.startswith("app.infrastructure"):
+                if module.startswith(forbidden_prefixes):
                     offenders.append((path.relative_to(PROJECT_ROOT), module))
 
         self.assertEqual(offenders, [])
@@ -60,4 +76,3 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

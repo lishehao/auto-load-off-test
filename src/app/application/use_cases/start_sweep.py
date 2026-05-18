@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timezone
 
 from app.application.dto import StartSweepCommand
+from app.application.errors import describe_exception
 from app.application.events import (
     EventEmitter,
     SweepCompleted,
@@ -98,8 +99,8 @@ class StartSweepUseCase:
             return result
 
         except ValidationError as exc:
-            emitter.emit(SweepFailed(error_code="VALIDATION", message=str(exc)))
+            emitter.emit(SweepFailed(error_code="VALIDATION", message=describe_exception(exc)))
             return SweepResult()
         except Exception as exc:  # noqa: BLE001
-            emitter.emit(SweepFailed(error_code="SWEEP_RUNTIME", message=str(exc)))
+            emitter.emit(SweepFailed(error_code="SWEEP_RUNTIME", message=describe_exception(exc)))
             return SweepResult()

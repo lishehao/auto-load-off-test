@@ -19,7 +19,9 @@ This project is not a certified production test platform. It does not replace la
 - The sweep loop checks that event between frequency points and emits `SweepStopped` with the partial result.
 - Runner shutdown signals stop and waits briefly for the worker thread before closing instrument ports.
 - AWG shutdown attempts to turn the configured output channel off before closing the port.
+- If the worker does not stop before the shutdown timeout, the runner emits `SHUTDOWN_TIMEOUT` and still attempts to turn AWG output off and close the known ports.
 - If output-off or port-close fails, the runner emits a `SweepWarning` so the UI/event log can surface the cleanup failure.
+- Treat any cleanup warning after Stop or window close as hardware-significant: verify the AWG front panel/output indicator and the DUT state before touching the setup or starting another sweep.
 
 ## Exception Behavior
 

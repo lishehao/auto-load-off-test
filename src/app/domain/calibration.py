@@ -9,9 +9,9 @@ from app.domain.models import ReferenceCurve, SweepPoint
 
 
 def build_reference_interpolator(curve: ReferenceCurve) -> Callable[[np.ndarray], np.ndarray]:
-    freq = np.asarray(curve.freq_hz, dtype=float).squeeze()
-    gain_db = np.asarray(curve.gain_db, dtype=float).squeeze()
-    phase = None if curve.phase_deg is None else np.asarray(curve.phase_deg, dtype=float).squeeze()
+    freq = np.atleast_1d(np.asarray(curve.freq_hz, dtype=float).squeeze())
+    gain_db = np.atleast_1d(np.asarray(curve.gain_db, dtype=float).squeeze())
+    phase = None if curve.phase_deg is None else np.atleast_1d(np.asarray(curve.phase_deg, dtype=float).squeeze())
 
     if freq.size == 0:
         raise ValueError("Reference frequency data is empty")

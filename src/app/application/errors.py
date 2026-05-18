@@ -15,3 +15,11 @@ class InstrumentAppError(ApplicationError):
 
 class PersistenceAppError(ApplicationError):
     pass
+
+
+def describe_exception(exc: BaseException) -> str:
+    message = str(exc)
+    exc_type = type(exc).__name__
+    if message:
+        return f"{exc_type}: {message}"
+    return exc_type
