@@ -15,6 +15,11 @@ It turns a repetitive manual lab workflow into a layered application:
 
 ## Demo
 
+Watch the point-by-point operator console demo on YouTube:
+[https://youtu.be/fYokRzNnm84](https://youtu.be/fYokRzNnm84)
+
+[![Auto-Load-off-Test point-by-point operator console replay](docs/images/auto-load-off-test-point-replay-demo.png)](https://youtu.be/fYokRzNnm84)
+
 This capture shows the real Tkinter operator console replaying a deterministic 72-point fixture
 point by point. It demonstrates the UI, plotting, progress/status updates, source receipt, and export
 workflow without connected instruments.
@@ -22,11 +27,13 @@ workflow without connected instruments.
 It is labeled `No hardware - simulated fixture`: the production AWG/oscilloscope adapters are not used
 in this demo, and it is not live hardware validation.
 
+Local fallback:
+
 <video controls poster="docs/images/auto-load-off-test-point-replay-demo.png" src="docs/images/auto-load-off-test-point-replay-demo.mp4">
   <a href="docs/images/auto-load-off-test-point-replay-demo.mp4">Watch the point-by-point fixture replay demo</a>
 </video>
 
-[Open the demo video](docs/images/auto-load-off-test-point-replay-demo.mp4) |
+[Open the local MP4 fallback](docs/images/auto-load-off-test-point-replay-demo.mp4) |
 [View the poster frame](docs/images/auto-load-off-test-point-replay-demo.png)
 
 ## Why It Exists
