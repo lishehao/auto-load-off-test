@@ -3,6 +3,9 @@ from __future__ import annotations
 import queue
 import threading
 from collections.abc import Callable
+from pathlib import Path
+
+import numpy as np
 
 from app.application.events import EventEmitter
 from app.application.services.sweep_task_runner import SweepTaskRunner
@@ -19,6 +22,9 @@ from app.presentation.tk.mapper import settings_to_vm, vm_to_settings
 from app.presentation.tk.ui_event_handler import UiEventHandler
 from app.presentation.tk.view_model import ViewModel
 from app.runtime.paths import AppPaths
+
+
+DEMO_FIXTURE_FILE = Path("demo_data") / "hyperframe_simulated_fixture.mat"
 
 
 class TkController(EventEmitter):
@@ -72,6 +78,7 @@ class TkController(EventEmitter):
             on_stop=self.on_stop,
             on_save_data=self.on_save_data,
             on_load_data=self.on_load_data,
+            on_load_demo_fixture=self.on_load_demo_fixture,
             on_load_ref=self.on_load_reference,
             on_save_settings=self.on_save_settings,
             on_load_settings=self.on_load_settings,
@@ -101,6 +108,7 @@ class TkController(EventEmitter):
 
         try:
             settings = vm_to_settings(self.vm)
+            self._ui_handler.set_live_source()
             self._refresh_connection_targets(settings)
             self._task_runner.start(
                 settings=settings,
@@ -155,6 +163,7 @@ class TkController(EventEmitter):
                 settings=settings,
                 target=dialogs_to_target(fp, self.window),
             )
+            self._ui_handler.set_export_saved(path_name=artifacts.mat_path.name)
             dialogs.show_info(self.window, f"Saved: {artifacts.mat_path.name}")
         except Exception as exc:  # noqa: BLE001
             dialogs.show_warning(self.window, f"Failed to save data: {exc}")
@@ -169,11 +178,26 @@ class TkController(EventEmitter):
             return
 
         try:
-            loaded = self.load_measurement_use_case.execute(str(fp))
-            self._ui_handler.set_result(loaded.result)
+            self._load_measurement_from_path(Path(fp))
             dialogs.show_info(self.window, "Measurement loaded")
         except Exception as exc:  # noqa: BLE001
             dialogs.show_warning(self.window, f"Failed to load data: {exc}")
+
+    def on_load_demo_fixture(self) -> None:
+        fixture_path = self._paths.root_dir / DEMO_FIXTURE_FILE
+        if not fixture_path.exists():
+            dialogs.show_warning(
+                self.window,
+                f"Demo fixture not found: {fixture_path}",
+            )
+            return
+
+        try:
+            self._load_measurement_from_path(fixture_path, force_fixture=True)
+            point_count = self.vm.point_count_text.get()
+            self.vm.status_text.set(f"Demo fixture loaded ({point_count}; no hardware)")
+        except Exception as exc:  # noqa: BLE001
+            dialogs.show_warning(self.window, f"Failed to load demo fixture: {exc}")
 
     def on_load_reference(self) -> None:
         fp = dialogs.ask_open_file(
@@ -188,6 +212,7 @@ class TkController(EventEmitter):
             _curve, interpolator = self.load_reference_use_case.execute(str(fp))
             self._reference_interpolator = interpolator
             self.vm.calibration_enabled.set(True)
+            self._ui_handler.set_reference_loaded(path_name=Path(fp).name)
             dialogs.show_info(self.window, "Reference loaded")
         except Exception as exc:  # noqa: BLE001
             dialogs.show_warning(self.window, f"Failed to load reference: {exc}")
@@ -197,6 +222,15 @@ class TkController(EventEmitter):
 
     def on_mag_phase_change(self) -> None:
         self._ui_handler.refresh_plot()
+
+    def _load_measurement_from_path(self, path: Path, *, force_fixture: bool = False) -> None:
+        loaded = self.load_measurement_use_case.execute(str(path))
+        self._ui_handler.set_result(loaded.result)
+        source = _describe_loaded_source(path=path, raw_payload=loaded.raw_payload)
+        if force_fixture or source["fixture"]:
+            self._ui_handler.set_fixture_source(label=source["label"], path_name=path.name)
+        else:
+            self._ui_handler.set_loaded_source(path_name=path.name)
 
     def on_close(self) -> None:
         self._closing = True
@@ -255,3 +289,28 @@ def dialogs_to_target(path, window: AppWindow):
         include_timestamp=False,
         figures=window.plot_widget.figures(),
     )
+
+
+def _describe_loaded_source(path: Path, raw_payload: dict[str, np.ndarray]) -> dict[str, object]:
+    source = _payload_text(raw_payload, "source")
+    label = _payload_text(raw_payload, "demo_label") or "Loaded fixture"
+    is_fixture = source == "mock_fixture" or "hyperframe_simulated_fixture" in path.name
+    return {
+        "fixture": is_fixture,
+        "label": label,
+    }
+
+
+def _payload_text(payload: dict[str, np.ndarray], key: str) -> str:
+    value = payload.get(key)
+    if value is None:
+        return ""
+    arr = np.asarray(value)
+    if arr.dtype.kind in {"U", "S"}:
+        if arr.ndim == 2 and arr.shape[0] == 1:
+            return "".join(str(item) for item in arr[0]).strip()
+        return "".join(str(item) for item in arr.ravel()).strip()
+    squeezed = arr.squeeze()
+    if squeezed.shape == ():
+        return str(squeezed.item()).strip()
+    return ""
