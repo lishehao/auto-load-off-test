@@ -13,6 +13,22 @@ It turns a repetitive manual lab workflow into a layered application:
 - apply reference calibration
 - export MAT/CSV/TXT data and optional plot images
 
+## Demo
+
+This capture shows the real Tkinter operator console replaying a deterministic 72-point fixture
+point by point. It demonstrates the UI, plotting, progress/status updates, source receipt, and export
+workflow without connected instruments.
+
+It is labeled `No hardware - simulated fixture`: the production AWG/oscilloscope adapters are not used
+in this demo, and it is not live hardware validation.
+
+<video controls poster="docs/images/auto-load-off-test-point-replay-demo.png" src="docs/images/auto-load-off-test-point-replay-demo.mp4">
+  <a href="docs/images/auto-load-off-test-point-replay-demo.mp4">Watch the point-by-point fixture replay demo</a>
+</video>
+
+[Open the demo video](docs/images/auto-load-off-test-point-replay-demo.mp4) |
+[View the poster frame](docs/images/auto-load-off-test-point-replay-demo.png)
+
 ## Why It Exists
 
 Manual AWG/oscilloscope sweep measurements are repetitive and easy to misconfigure. This project separates the workflow into testable layers so the sweep math, signal processing, settings serialization, and use-case flow can be verified without physical instruments.
@@ -119,6 +135,10 @@ Example result generated from `demo_data/Demo(2).mat`:
 
 ![Demo sweep result](docs/images/sweep_result.png)
 
+For application-material capture without connected instruments, see the deterministic Hyperframe fixture in
+`demo_data/hyperframe_simulated_fixture.*`. It should be labeled `No hardware - simulated fixture` and is not live
+hardware validation.
+
 ## Safety Notes
 
 This is a local lab automation tool, not a certified production test platform. Operators are responsible for confirming the connected instrument model, address, voltage range, frequency range, impedance, coupling, and device-under-test limits before running a live sweep.
@@ -132,6 +152,8 @@ See [docs/safety.md](docs/safety.md) for stop/shutdown behavior and hardware ass
 - [Safety Notes](docs/safety.md)
 - [Extending The Application](docs/extending.md)
 - [Case Study](docs/case_study.md)
+- [Hyperframe Demo Fixture](docs/hyperframe_demo.md)
+- [Hyperframe Capture Plan](docs/hyperframe_capture_plan.md)
 - [Demo Data](demo_data/README.md)
 
 ## Project Status
