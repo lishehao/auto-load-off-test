@@ -24,6 +24,7 @@ class UiEventHandler:
         self._vm = vm
         self._latest_result = SweepResult()
         self._started_at: float | None = None
+        self._event_history: list[str] = []
 
     @property
     def latest_result(self) -> SweepResult:
@@ -39,6 +40,7 @@ class UiEventHandler:
         self._vm.latest_frequency_text.set("-")
         self._vm.export_receipt_text.set("No export yet")
         self.set_live_source()
+        self.record_event("Sweep started")
 
     def set_result(self, result: SweepResult, *, refresh_plot: bool = True) -> None:
         self._latest_result = result
@@ -62,6 +64,7 @@ class UiEventHandler:
             self._vm.progress_text.set(f"{point_count} / {point_count}")
             self._vm.latest_frequency_text.set(_format_frequency(self._latest_result.points[-1].freq_hz))
             self._vm.elapsed_text.set("00:00")
+        self.record_event(f"Loaded simulated fixture: {path_name}")
 
     def set_loaded_source(self, *, path_name: str) -> None:
         self._vm.data_source_text.set(f"Loaded measurement · {path_name}")
@@ -69,12 +72,30 @@ class UiEventHandler:
         self._vm.validation_receipt_text.set("Loaded file; live hardware state not implied")
         self._vm.export_receipt_text.set("Loaded measurement; Save Data exports the current result")
         self._vm.run_state_text.set("Data loaded")
+        self.record_event(f"Loaded measurement: {path_name}")
 
-    def set_reference_loaded(self, *, path_name: str) -> None:
-        self._vm.validation_receipt_text.set(f"Reference loaded: {path_name}")
+    def set_reference_loaded(
+        self,
+        *,
+        receipt_text: str,
+        warnings: tuple[str, ...] = (),
+        record: bool = True,
+    ) -> None:
+        self._vm.reference_receipt_text.set(receipt_text)
+        if record:
+            self.record_event("Reference receipt updated")
+            for warning in warnings:
+                self.record_event(warning, level="Warning")
 
-    def set_export_saved(self, *, path_name: str) -> None:
-        self._vm.export_receipt_text.set(f"Saved measurement: {path_name}")
+    def set_export_saved(self, *, receipt_text: str) -> None:
+        self._vm.export_receipt_text.set(receipt_text)
+        self.record_event("Export artifacts saved")
+
+    def record_event(self, message: str, *, level: str = "Info") -> None:
+        line = f"{level}: {message}"
+        self._event_history.append(line)
+        self._event_history = self._event_history[-5:]
+        self._vm.event_history_text.set("\n".join(self._event_history))
 
     def refresh_plot(self) -> None:
         self._window.plot_widget.update_result(
@@ -107,6 +128,7 @@ class UiEventHandler:
             return
 
         if isinstance(event, SweepWarning):
+            self.record_event(event.message, level="Warning")
             if event.code in {"READY", "FREQ_MISMATCH", "AMP_MISMATCH"}:
                 self._vm.status_text.set(event.message)
             else:
@@ -118,6 +140,7 @@ class UiEventHandler:
             self._vm.run_state_text.set("Failed")
             self._window.btn_start.configure(state="normal")
             self._window.btn_stop.configure(state="disabled")
+            self.record_event(event.message, level="Error")
             dialogs.show_warning(self._window, event.message)
             return
 
@@ -128,6 +151,7 @@ class UiEventHandler:
             self._vm.elapsed_text.set(_format_elapsed(self._started_at))
             self._window.btn_start.configure(state="normal")
             self._window.btn_stop.configure(state="disabled")
+            self.record_event("Sweep stopped")
             return
 
         if isinstance(event, SweepCompleted):
@@ -138,6 +162,7 @@ class UiEventHandler:
             self._vm.elapsed_text.set(_format_elapsed(self._started_at))
             self._window.btn_start.configure(state="normal")
             self._window.btn_stop.configure(state="disabled")
+            self.record_event("Sweep completed")
 
 
 def _format_elapsed(started_at: float | None) -> str:
