@@ -8,13 +8,22 @@ from pathlib import Path
 import numpy as np
 
 from app.application.events import EventEmitter
+from app.application.ports.instruments import (
+    InstrumentIdentityProbePort,
+    InstrumentPortsFactory,
+    ResourceScannerPort,
+)
+from app.application.services.instrument_discovery import (
+    InstrumentDiscoveryService,
+    format_connection_receipt,
+    format_scan_receipt,
+)
 from app.application.services.sweep_task_runner import SweepTaskRunner
 from app.application.services.connection_monitor import ConnectionMonitor
 from app.application.use_cases.load_measurement import LoadMeasurementUseCase
 from app.application.use_cases.load_reference import LoadReferenceUseCase
 from app.application.use_cases.save_measurement import SaveMeasurementUseCase
 from app.application.use_cases.settings_use_case import SettingsUseCase
-from app.application.ports.instruments import InstrumentPortsFactory, ResourceScannerPort
 from app.domain.models import InstrumentEndpoint
 from app.presentation.tk import dialogs
 from app.presentation.tk.app_window import AppWindow
@@ -38,6 +47,7 @@ class TkController(EventEmitter):
         load_measurement_use_case: LoadMeasurementUseCase,
         load_reference_use_case: LoadReferenceUseCase,
         scanner: ResourceScannerPort,
+        identity_probe: InstrumentIdentityProbePort,
         ports_factory: InstrumentPortsFactory,
         resolve_address: Callable[[InstrumentEndpoint], str],
         paths: AppPaths | None = None,
@@ -59,6 +69,7 @@ class TkController(EventEmitter):
         self._closing = False
 
         self._ui_handler = UiEventHandler(window=window, vm=vm)
+        self._discovery_service = InstrumentDiscoveryService(scanner=scanner, identity_probe=identity_probe)
         self._task_runner = SweepTaskRunner(
             emitter=self,
             save_measurement_use_case=save_measurement_use_case,
@@ -82,6 +93,8 @@ class TkController(EventEmitter):
             on_load_ref=self.on_load_reference,
             on_save_settings=self.on_save_settings,
             on_load_settings=self.on_load_settings,
+            on_scan_resources=self.on_scan_resources,
+            on_test_connect=self.on_test_connect,
             on_close=self.on_close,
             on_figure_change=self.on_figure_change,
             on_mag_phase_change=self.on_mag_phase_change,
@@ -217,6 +230,26 @@ class TkController(EventEmitter):
         except Exception as exc:  # noqa: BLE001
             dialogs.show_warning(self.window, f"Failed to load reference: {exc}")
 
+    def on_scan_resources(self) -> None:
+        try:
+            scan = self._discovery_service.scan_resources()
+            self.vm.discovery_status_text.set(format_scan_receipt(scan))
+            self.vm.status_text.set("Resource scan completed")
+        except Exception as exc:  # noqa: BLE001
+            self.vm.discovery_status_text.set(f"Resource scan failed: {exc}")
+            dialogs.show_warning(self.window, f"Resource scan failed: {exc}")
+
+    def on_test_connect(self) -> None:
+        try:
+            settings = vm_to_settings(self.vm)
+            checks = self._discovery_service.test_setup(settings.setup, self._resolve_address)
+            self._apply_connection_checks(checks)
+            self.vm.discovery_status_text.set(format_connection_receipt(checks))
+            self.vm.status_text.set("Connection test completed")
+        except Exception as exc:  # noqa: BLE001
+            self.vm.discovery_status_text.set(f"Connection test failed: {exc}")
+            dialogs.show_warning(self.window, f"Connection test failed: {exc}")
+
     def on_figure_change(self) -> None:
         self.window.plot_widget.set_mode(self.vm.figure_mode.get())
 
@@ -279,6 +312,23 @@ class TkController(EventEmitter):
     def _get_cached_osc_target_address(self) -> str:
         with self._connection_target_lock:
             return self._osc_target_address
+
+    def _apply_connection_checks(self, checks) -> None:
+        for check in checks:
+            label = check.role.value.upper()
+            if check.status == "connected":
+                text = f"{label} connected"
+            elif check.status == "address_empty":
+                text = f"{label} address empty"
+            elif check.status == "unsupported_model":
+                text = f"{label} unsupported"
+            else:
+                text = f"{label} offline"
+
+            if check.role.value == "awg":
+                self.vm.awg_connection_text.set(text)
+            else:
+                self.vm.osc_connection_text.set(text)
 
 
 def dialogs_to_target(path, window: AppWindow):

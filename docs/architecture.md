@@ -24,9 +24,9 @@ flowchart LR
   - Use-case orchestration for start/stop sweep, save/load, reference loading, and settings.
   - Emits typed events for UI; no Tk widgets or message boxes.
 - `app/domain`
-  - Pure dataclasses, enums, validation, sweep generation, DSP, calibration, and export array shaping.
+  - Pure dataclasses, enums, instrument capability profiles, validation, sweep generation, DSP, calibration, and export array shaping.
 - `app/infrastructure`
-  - Adapter wrappers around `src/equips.py`.
+  - Adapter registry and wrappers around `src/equips.py`.
   - JSON settings and MAT/CSV/TXT persistence.
 
 ## Dependency Rules
@@ -62,8 +62,11 @@ Forbidden:
 ## Instrument Access
 
 - Instrument model and address resolution go through `equips_factory`.
+- Supported model metadata is declared in `domain/instrument_capabilities.py`.
+- Adapter construction goes through the explicit infrastructure adapter registry.
 - AWG and OSC commands are executed through `AwgPort` and `OscPort` adapters.
-- Connection scanning is provided by `PyVisaResourceScanner` and `ConnectionMonitor`.
+- Connection scanning is provided by `PyVisaResourceScanner`, `ConnectionMonitor`, and the
+  discovery/test-connect service. Test-connect uses short `*IDN?` probes and does not start a sweep.
 - `src/equips.py` is intentionally treated as a vendor compatibility layer. It contains legacy SCPI/serial behavior that should not be casually refactored without physical instrument verification.
 
 ## Persistence

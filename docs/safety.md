@@ -9,6 +9,8 @@ This project is not a certified production test platform. It does not replace la
 ## Hardware Assumptions
 
 - Supported model labels are defined in `src/app/shared/mapping.py`.
+- Model capability profiles provide software preflight checks for supported channels, modes, and known limits.
+  They are not a substitute for instrument manuals or live bench validation.
 - Live operation uses VISA/LAN/serial access through `src/equips.py` via infrastructure adapters.
 - Default settings are conservative examples, not a guarantee that a connected DUT is safe.
 - The operator must verify AWG amplitude, frequency range, impedance, coupling mode, oscilloscope vertical range, and trigger configuration before starting a sweep.

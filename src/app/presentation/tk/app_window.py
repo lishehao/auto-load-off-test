@@ -87,6 +87,8 @@ class AppWindow(tk.Tk):
         on_load_ref,
         on_save_settings,
         on_load_settings,
+        on_scan_resources,
+        on_test_connect,
         on_close,
         on_figure_change,
         on_mag_phase_change,
@@ -94,6 +96,8 @@ class AppWindow(tk.Tk):
         self.control_panel.bind_actions(
             on_save_settings=on_save_settings,
             on_load_settings=on_load_settings,
+            on_scan_resources=on_scan_resources,
+            on_test_connect=on_test_connect,
         )
         self.run_panel.bind_actions(
             on_start=on_start,
@@ -132,6 +136,8 @@ class AppWindow(tk.Tk):
         self.btn_load_ref = self.run_panel.btn_load_ref
         self.btn_save_settings = self.control_panel.btn_save_settings
         self.btn_load_settings = self.control_panel.btn_load_settings
+        self.btn_scan_resources = self.control_panel.btn_scan_resources
+        self.btn_test_connect = self.control_panel.btn_test_connect
         self.cmb_figure = self.plot_widget.cmb_figure
         self.cmb_mag_phase = self.plot_widget.cmb_mag_phase
 

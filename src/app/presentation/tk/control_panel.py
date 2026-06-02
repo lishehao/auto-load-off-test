@@ -28,9 +28,13 @@ class ControlPanel(tk.Frame):
         *,
         on_save_settings,
         on_load_settings,
+        on_scan_resources,
+        on_test_connect,
     ) -> None:
         self.btn_save_settings.configure(command=on_save_settings)
         self.btn_load_settings.configure(command=on_load_settings)
+        self.btn_scan_resources.configure(command=on_scan_resources)
+        self.btn_test_connect.configure(command=on_test_connect)
 
     def _build(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -70,6 +74,23 @@ class ControlPanel(tk.Frame):
         chips.grid_columnconfigure((0, 1), weight=1)
         self.awg_connection_chip = self._status_chip(chips, self._vm.awg_connection_text, 0)
         self.osc_connection_chip = self._status_chip(chips, self._vm.osc_connection_text, 1)
+
+        actions = ttk.Frame(section)
+        actions.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(7, 0))
+        actions.grid_columnconfigure((0, 1), weight=1)
+        self.btn_scan_resources = ttk.Button(actions, text="Scan Resources")
+        self.btn_scan_resources.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self.btn_test_connect = ttk.Button(actions, text="Test Connect")
+        self.btn_test_connect.grid(row=0, column=1, sticky="ew")
+        tk.Label(
+            section,
+            textvariable=self._vm.discovery_status_text,
+            bg=CARD_BG,
+            fg=MUTED,
+            justify=tk.LEFT,
+            anchor="w",
+            wraplength=250,
+        ).grid(row=10, column=0, columnspan=2, sticky="ew", pady=(6, 0))
 
     def _build_sweep(self, row: int) -> None:
         section = self._section("Sweep", row)

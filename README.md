@@ -150,6 +150,7 @@ See [docs/safety.md](docs/safety.md) for stop/shutdown behavior and hardware ass
 - [Operator Guide](docs/operator_guide.md)
 - [Safety Notes](docs/safety.md)
 - [Extending The Application](docs/extending.md)
+- [Packaging](docs/packaging.md)
 - [Case Study](docs/case_study.md)
 - [Hyperframe Demo Fixture](docs/hyperframe_demo.md)
 - [Hyperframe Capture Plan](docs/hyperframe_capture_plan.md)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.domain.instrument_capabilities import InstrumentRole, model_names_for_role
+
 
 class Mapping:
     label_for_input_ui = "Input Control Panel"
@@ -97,8 +99,8 @@ class Mapping:
     mapping_state_on = "ON"
     mapping_state_off = "OFF"
 
-    values_awg = [mapping_DSG_4102, mapping_DSG_836]
-    values_osc = [mapping_MDO_34, mapping_MDO_3024, mapping_DHO_1202, mapping_DHO_1204]
+    values_awg = list(model_names_for_role(InstrumentRole.AWG))
+    values_osc = list(model_names_for_role(InstrumentRole.OSC))
     values_device_type = [label_for_device_type_awg, label_for_device_type_osc]
     values_freq_unit = [mapping_hz, mapping_khz, mapping_mhz, mapping_ghz]
     values_device_num_list = [1, 2, 3, 4]

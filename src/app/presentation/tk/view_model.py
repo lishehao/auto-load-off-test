@@ -60,3 +60,4 @@ class ViewModel:
         self.export_receipt_text = tk.StringVar(root, value="No export yet")
         self.awg_connection_text = tk.StringVar(root, value="AWG offline")
         self.osc_connection_text = tk.StringVar(root, value="OSC offline")
+        self.discovery_status_text = tk.StringVar(root, value="Scan VISA resources or test current addresses")
