@@ -1,6 +1,6 @@
 # Auto-Load-off-Test
 
-[![CI](https://github.com/lishehao-ctrl/Auto-Load-off-Test/actions/workflows/ci.yml/badge.svg)](https://github.com/lishehao-ctrl/Auto-Load-off-Test/actions/workflows/ci.yml)
+[![CI](https://github.com/lishehao/auto-load-off-test/actions/workflows/ci.yml/badge.svg)](https://github.com/lishehao/auto-load-off-test/actions/workflows/ci.yml)
 
 Auto-Load-off-Test is a local Python desktop tool for AWG/oscilloscope sweep measurement, calibration, plotting, and data export.
 
@@ -12,6 +12,17 @@ It turns a repetitive manual lab workflow into a layered application:
 - measure gain and optional phase
 - apply reference calibration
 - export MAT/CSV/TXT data and optional plot images
+
+## Evidence Status
+
+This table is intentionally conservative. Update it when draft work merges or live bench validation becomes available.
+
+| Surface | Public status | Safe claim |
+| --- | --- | --- |
+| `main` branch | Layered Tkinter desktop app with hardware-free tests, deterministic fixture demo, measurement export, operator guide, architecture notes, and safety notes. | Software engineering maturity for a lab-automation workflow; hardware-free validation only. |
+| [Draft PR #6](https://github.com/lishehao/auto-load-off-test/pull/6) | Draft capability/discovery/packaging sprint with public CI success on the PR head. Not merged into `main` yet. | In-review follow-up work for model capability profiles, mockable discovery/test-connect, and Windows packaging notes. |
+| [Draft PR #7](https://github.com/lishehao/auto-load-off-test/pull/7) | Draft calibration/export workflow receipt sprint stacked on PR #6. Main-target CI may not run until it is retargeted. Not merged into `main` yet. | In-review UI polish for reference coverage receipts, export artifact receipts, and non-modal workflow warnings. |
+| Live instruments | No current public evidence of live AWG/oscilloscope validation. | Do not claim live instrument validation; use the project as hardware-free software and workflow evidence. |
 
 ## Demo
 
@@ -155,6 +166,17 @@ See [docs/safety.md](docs/safety.md) for stop/shutdown behavior and hardware ass
 - [Hyperframe Capture Plan](docs/hyperframe_capture_plan.md)
 - [Demo Data](demo_data/README.md)
 
+## Evidence Map
+
+- Architecture and code boundaries: [docs/architecture.md](docs/architecture.md)
+- Operator workflow: [docs/operator_guide.md](docs/operator_guide.md)
+- Hardware and safety boundary: [docs/safety.md](docs/safety.md)
+- No-hardware fixture/demo boundary: [docs/hyperframe_demo.md](docs/hyperframe_demo.md)
+- Deterministic demo data: [demo_data/README.md](demo_data/README.md)
+- CI workflow: [.github/workflows/ci.yml](.github/workflows/ci.yml)
+
 ## Project Status
 
 The refactored app is local, single-process, and hardware-adapter based. Its strongest engineering signal is the separation between UI, use-case orchestration, pure domain logic, persistence, and instrument side effects.
+
+Current public validation is hardware-free: unit tests, mocked/fake instrument paths, deterministic fixture loading/replay, export round trips, and documentation checks. Live hardware validation remains future work and should not be claimed from this repository alone.
