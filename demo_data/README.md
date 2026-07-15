@@ -46,6 +46,10 @@ These files are sample data for review and local testing. They are not a substit
 
 The Hyperframe fixture is explicitly simulated no-hardware data. Do not describe it as a live hardware validation run.
 
+`tests/test_hardware_free_workflow.py` uses the measurement/reference pair to reconstruct corrected gain and phase,
+compare against checked-in expected arrays, export MAT/CSV/TXT, and reload MAT/CSV. This validates the deterministic
+software workflow, not the physical plausibility or metrological accuracy of a connected bench.
+
 Regenerate the deterministic Hyperframe fixture with:
 
 ```bash

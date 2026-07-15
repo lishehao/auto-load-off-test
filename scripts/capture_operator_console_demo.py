@@ -31,6 +31,7 @@ def main() -> None:
     app = build_desktop_app(paths=AppPaths.from_root(ROOT))
     app.window.geometry("1366x768+40+60")
     app.window.update()
+    _raise_window(app.window)
     window_id = _find_window_id(app.window.title())
     print(f"window_id: {window_id}")
     with tempfile.TemporaryDirectory(prefix="auto-load-off-test-capture-") as td:
@@ -55,7 +56,7 @@ class CaptureSession:
 
     def _start(self) -> None:
         _raise_window(self.window)
-        self._capture_frames(14, self._press_demo_button)
+        self.window.after(500, lambda: self._capture_frames(14, self._press_demo_button))
 
     def _press_demo_button(self) -> None:
         self.window.run_panel.btn_load_demo_fixture.configure(relief="sunken")
@@ -90,12 +91,19 @@ class CaptureSession:
 
 
 def _require_tools() -> None:
-    missing = [tool for tool in ("screencapture", "ffmpeg") if shutil.which(tool) is None]
-    if missing:
-        raise RuntimeError(f"Missing capture tool(s): {', '.join(missing)}")
+    if shutil.which("screencapture") is None:
+        raise RuntimeError("Missing capture tool: screencapture")
+    _ffmpeg_executable()
 
 
 def _raise_window(window) -> None:
+    try:
+        from AppKit import NSApplicationActivateIgnoringOtherApps, NSRunningApplication
+
+        current_app = NSRunningApplication.runningApplicationWithProcessIdentifier_(os.getpid())
+        current_app.activateWithOptions_(NSApplicationActivateIgnoringOtherApps)
+    except Exception:
+        pass
     try:
         subprocess.run(
             [
@@ -114,22 +122,35 @@ def _raise_window(window) -> None:
     window.attributes("-topmost", True)
     window.update()
     time.sleep(0.2)
+    window.attributes("-topmost", False)
     window.update()
 
 
 def _find_window_id(title: str) -> int:
+    quartz_window_id = _find_window_id_with_quartz(title)
+    if quartz_window_id is not None:
+        return quartz_window_id
+
     script = _window_list_script_path()
     last_stdout = ""
     last_stderr = ""
     for _attempt in range(12):
-        result = subprocess.run(
-            ["swift", str(script), title],
-            check=False,
-            text=True,
-            capture_output=True,
-        )
+        try:
+            result = subprocess.run(
+                ["swift", str(script), title],
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError("Precise window capture requires Quartz or the Swift CLI") from exc
         last_stdout = result.stdout
         last_stderr = result.stderr
+        if "xcode license" in result.stderr.lower():
+            raise RuntimeError(
+                "Precise window capture requires the optional capture dependencies when Swift is unavailable. "
+                "Install with: python -m pip install -e '.[capture]'"
+            )
         for line in result.stdout.splitlines():
             line = line.strip()
             if line.isdigit():
@@ -139,6 +160,28 @@ def _find_window_id(title: str) -> int:
         f"Could not find Tk window id for title: {title}; "
         f"stdout={last_stdout!r}; stderr={last_stderr!r}"
     )
+
+
+def _find_window_id_with_quartz(title: str) -> int | None:
+    try:
+        import Quartz
+    except ImportError:
+        return None
+
+    windows = Quartz.CGWindowListCopyWindowInfo(
+        Quartz.kCGWindowListOptionAll,
+        Quartz.kCGNullWindowID,
+    )
+    for info in windows:
+        if int(info.get(Quartz.kCGWindowOwnerPID, -1)) != os.getpid():
+            continue
+        name = str(info.get(Quartz.kCGWindowName, ""))
+        bounds = info.get(Quartz.kCGWindowBounds, {})
+        width = float(bounds.get("Width", 0))
+        height = float(bounds.get("Height", 0))
+        if (name == title or "Auto-Load-off-Test" in name) and width > 0 and height > 0:
+            return int(info[Quartz.kCGWindowNumber])
+    return None
 
 
 def _window_list_script_path() -> Path:
@@ -181,19 +224,76 @@ exit(1)
     return script
 
 
-def _capture_window(window_id: int | None, output_path: Path) -> None:
-    if window_id is None:
-        raise RuntimeError("Capture window id is not set")
-    subprocess.run(
-        ["screencapture", "-x", "-l", str(window_id), str(output_path)],
-        check=True,
+def _capture_window(window_id: int, output_path: Path) -> None:
+    for _attempt in range(3):
+        output_path.unlink(missing_ok=True)
+        if _capture_window_with_quartz(window_id, output_path):
+            _flatten_capture(output_path)
+            if _capture_has_full_frame(output_path):
+                return
+
+        command = ["screencapture", "-x", "-o", "-l", str(window_id), str(output_path)]
+        result = subprocess.run(command, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if result.returncode == 0:
+            _flatten_capture(output_path)
+            if _capture_has_full_frame(output_path):
+                return
+        time.sleep(0.05)
+    raise RuntimeError(f"Could not capture verified Tk window id {window_id}")
+
+
+def _capture_window_with_quartz(window_id: int, output_path: Path) -> bool:
+    try:
+        import Quartz
+        from Foundation import NSURL
+    except ImportError:
+        return False
+
+    image = Quartz.CGWindowListCreateImage(
+        Quartz.CGRectNull,
+        Quartz.kCGWindowListOptionIncludingWindow,
+        window_id,
+        Quartz.kCGWindowImageBoundsIgnoreFraming,
     )
+    if image is None:
+        return False
+    destination = Quartz.CGImageDestinationCreateWithURL(
+        NSURL.fileURLWithPath_(str(output_path)),
+        "public.png",
+        1,
+        None,
+    )
+    if destination is None:
+        return False
+    Quartz.CGImageDestinationAddImage(destination, image, None)
+    return bool(Quartz.CGImageDestinationFinalize(destination))
+
+
+def _flatten_capture(output_path: Path) -> None:
+    from PIL import Image
+
+    with Image.open(output_path) as source:
+        rgba = source.convert("RGBA")
+        opaque = Image.new("RGB", rgba.size, "white")
+        opaque.paste(rgba, mask=rgba.getchannel("A"))
+        opaque.save(output_path)
+
+
+def _capture_has_full_frame(output_path: Path) -> bool:
+    from PIL import Image
+
+    with Image.open(output_path) as source:
+        sample = source.convert("RGB")
+        sample.thumbnail((180, 120))
+        pixels = list(sample.getdata())
+    near_black = sum(1 for red, green, blue in pixels if max(red, green, blue) < 12)
+    return bool(pixels) and near_black / len(pixels) < 0.12
 
 
 def _write_video(frame_dir: Path) -> None:
     subprocess.run(
         [
-            "ffmpeg",
+            _ffmpeg_executable(),
             "-y",
             "-framerate",
             str(FRAME_RATE),
@@ -211,6 +311,27 @@ def _write_video(frame_dir: Path) -> None:
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
+
+
+def _ffmpeg_executable() -> str:
+    system_ffmpeg = shutil.which("ffmpeg")
+    if system_ffmpeg is not None:
+        probe = subprocess.run(
+            [system_ffmpeg, "-version"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if probe.returncode == 0:
+            return system_ffmpeg
+    try:
+        import imageio_ffmpeg
+    except ImportError as exc:
+        raise RuntimeError(
+            "No working ffmpeg executable found. Install capture dependencies with: "
+            "python -m pip install -e '.[capture]'"
+        ) from exc
+    return imageio_ffmpeg.get_ffmpeg_exe()
 
 
 if __name__ == "__main__":

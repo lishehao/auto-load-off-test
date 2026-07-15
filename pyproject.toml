@@ -28,6 +28,10 @@ dev = [
 build = [
   "pyinstaller>=6,<7",
 ]
+capture = [
+  "imageio-ffmpeg>=0.5,<1",
+  "pyobjc-framework-Quartz>=10.3; sys_platform == 'darwin'",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

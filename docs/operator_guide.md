@@ -1,6 +1,7 @@
 # Operator Guide
 
-This guide summarizes the live workflow for the desktop app. The original Word guide in `UserGuide/` can remain as a detailed operator artifact, but this Markdown version is readable directly on GitHub.
+This guide summarizes live, loaded-file, and simulated-fixture workflows for the desktop app. The original Word guide
+in `UserGuide/` can remain as a detailed operator artifact, but this Markdown version is readable directly on GitHub.
 
 ## 1. Connect Instruments
 
@@ -10,6 +11,12 @@ This guide summarizes the live workflow for the desktop app. The original Word g
 4. For triggered operation, connect or select the trigger channel.
 5. Confirm VISA/LAN visibility with the instrument scanner or external VISA tooling.
 
+Use `Scan Resources` to list addresses and `Test Connect` to issue the short identity probe. A connected receipt is
+useful setup evidence, but a successful identity query is not a sweep or safety validation.
+
+For a no-hardware review, use `Load Demo Fixture`. The UI changes the source state to fixture, labels the run
+`No hardware - simulated fixture`, and marks both instruments `not used`.
+
 ## 2. Configure Sweep Parameters
 
 - Start/stop frequency define the sweep range.
@@ -18,6 +25,8 @@ This guide summarizes the live workflow for the desktop app. The original Word g
 - AWG amplitude is configured in Vpp.
 - Oscilloscope range and offset define the vertical acquisition window.
 - Coupling and impedance should match the probe, DUT, and measurement setup.
+- The plot X-axis control supports `auto`, `linear`, and `log`. Fixture replay defaults to a log-frequency gain-dB and
+  phase view; an empty requested log plot remains safe until the first positive frequency arrives.
 
 ## 3. Choose Correction And Trigger Mode
 
@@ -48,6 +57,9 @@ The receipt is an operator aid; it is not live hardware validation by itself.
 
 The CSV columns are:
 
+- `source`
+- `validation_boundary`
+- `correction_mode`
 - `freq_hz`
 - `gain_linear`
 - `gain_db`
@@ -68,11 +80,12 @@ The files in `demo_data/` can be loaded through the measurement loader path to i
 - Unexpected phase: verify reference channel, trigger mode, and cable/probe delays.
 - Save/load failure: confirm output directory permissions and supported file suffixes.
 
-## 8. Screenshots
+## 8. Review Artifacts
 
-For portfolio documentation, capture:
+The current primary review artifacts are:
 
-- `docs/images/main_ui.png`: app configured before a sweep.
-- `docs/images/sweep_result.png`: completed sweep with plotted result.
+- `docs/images/auto-load-off-test-point-replay-demo.png`: current real-Tk poster.
+- `docs/images/auto-load-off-test-point-replay-demo.mp4`: current point-by-point replay.
+- `docs/images/sweep_result.png`: older loaded-data plot example.
 
 Screenshots should be captured from the real desktop app rather than mocked or generated images.

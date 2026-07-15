@@ -103,6 +103,7 @@ class TkController(EventEmitter):
             on_close=self.on_close,
             on_figure_change=self.on_figure_change,
             on_mag_phase_change=self.on_mag_phase_change,
+            on_plot_scale_change=self.on_plot_scale_change,
         )
         self._bind_reference_receipt_traces()
 
@@ -239,20 +240,27 @@ class TkController(EventEmitter):
             return
 
         try:
-            curve, interpolator = self.load_reference_use_case.execute(str(fp))
-            self._reference_interpolator = interpolator
-            self._reference_curve = curve
-            self._reference_path = Path(fp)
-            self.vm.calibration_enabled.set(True)
-            warnings = self._refresh_reference_receipt(record=True)
-            if warnings:
-                self.vm.status_text.set("Reference loaded with coverage warning")
-            else:
-                self.vm.status_text.set("Reference loaded")
+            self.load_reference_from_path(fp)
             dialogs.show_info(self.window, "Reference loaded")
         except Exception as exc:  # noqa: BLE001
             self._ui_handler.record_event(f"Reference load failed: {exc}", level="Warning")
             dialogs.show_warning(self.window, f"Failed to load reference: {exc}")
+
+    def load_reference_from_path(self, path: str | Path, *, record: bool = True) -> tuple[str, ...]:
+        """Load a reference without a file dialog for tests and reproducible demo tooling."""
+        reference_path = Path(path)
+        curve, interpolator = self.load_reference_use_case.execute(str(reference_path))
+        self._reference_interpolator = interpolator
+        self._reference_curve = curve
+        self._reference_path = reference_path
+        self.window.plot_widget.set_reference_coverage(
+            float(np.min(curve.freq_hz)),
+            float(np.max(curve.freq_hz)),
+        )
+        self.vm.calibration_enabled.set(True)
+        warnings = self._refresh_reference_receipt(record=record)
+        self.vm.status_text.set("Reference loaded with coverage warning" if warnings else "Reference loaded")
+        return warnings
 
     def on_scan_resources(self) -> None:
         try:
@@ -280,6 +288,9 @@ class TkController(EventEmitter):
         self.window.plot_widget.set_mode(self.vm.figure_mode.get())
 
     def on_mag_phase_change(self) -> None:
+        self._ui_handler.refresh_plot()
+
+    def on_plot_scale_change(self) -> None:
         self._ui_handler.refresh_plot()
 
     def _load_measurement_from_path(self, path: Path, *, force_fixture: bool = False) -> None:
@@ -405,7 +416,7 @@ def dialogs_to_target(path, window: AppWindow):
     )
 
 
-def _describe_loaded_source(path: Path, raw_payload: dict[str, np.ndarray]) -> dict[str, object]:
+def _describe_loaded_source(path: Path, raw_payload: dict[str, object]) -> dict[str, object]:
     source = _payload_text(raw_payload, "source")
     label = _payload_text(raw_payload, "demo_label") or "Loaded fixture"
     is_fixture = source == "mock_fixture" or "hyperframe_simulated_fixture" in path.name
@@ -415,7 +426,7 @@ def _describe_loaded_source(path: Path, raw_payload: dict[str, np.ndarray]) -> d
     }
 
 
-def _payload_text(payload: dict[str, np.ndarray], key: str) -> str:
+def _payload_text(payload: dict[str, object], key: str) -> str:
     value = payload.get(key)
     if value is None:
         return ""

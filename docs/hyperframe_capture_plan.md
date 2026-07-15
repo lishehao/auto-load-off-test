@@ -1,7 +1,6 @@
 # Hyperframe Fixture Replay Capture Plan
 
-This plan captures the deterministic fixture replay first. It does not add an app-level demo-mode banner
-and does not imply live hardware validation.
+This plan documents the reproducible deterministic fixture replay. It does not imply live hardware validation.
 
 Required visible label in the capture:
 
@@ -15,14 +14,18 @@ or:
 Simulated no-hardware demo fixture
 ```
 
-Keep the label small and persistent, for example in the lower-left corner or as a compact title overlay.
+The real Tk operator console owns this label; no external overlay is required.
 
 ## Current Tooling Status
 
-No `hyperframe` CLI or repo-local capture script is available in this workspace. The capture itself should
-be done in the coordinator's Hyperframe environment or by the person running the desktop capture.
+The repository contains a real-window capture path:
 
-Available local inputs:
+- `scripts/capture_operator_console_point_replay.py`: primary 0/72 -> 72/72 replay.
+- `scripts/capture_operator_console_demo.py`: shorter immediate-load capture helper and shared macOS capture code.
+- `docs/images/auto-load-off-test-point-replay-demo.mp4`: current primary video.
+- `docs/images/auto-load-off-test-point-replay-demo.png`: current poster.
+
+The point-replay helper uses only these deterministic local inputs:
 
 - `demo_data/hyperframe_simulated_fixture.mat`
 - `demo_data/hyperframe_simulated_fixture.csv`
@@ -32,21 +35,21 @@ Available local inputs:
 
 ## Capture Storyboard
 
-1. Setup frame
-   - Show the app purpose in one line: AWG/oscilloscope sweep measurement automation.
+1. Ready frame
+   - Show the empty gain-dB/phase workbench at 0/72.
    - Show the persistent label: `No hardware - simulated fixture`.
-   - Show the fixture source: `source=mock_fixture`.
+   - Show `AWG/OSC not used` rather than offline/connected.
 
 2. Sweep configuration frame
    - Show a conservative sweep setup: 1 kHz to 1 MHz, log-spaced fixture points.
    - Show correction mode as dual and trigger mode as triggered.
+   - Load the matching deterministic reference through the application use case and show its coverage receipt.
    - Keep the wording clear that this is fixture replay, not connected instruments.
 
 3. Fixture replay frame
-   - Use `Load Demo Fixture` in the UI, or load `demo_data/hyperframe_simulated_fixture.mat`
-     through the normal load-measurement path.
-   - Show the plot after load.
-   - If Hyperframe supports animation, reveal points progressively from the fixture CSV.
+   - Activate `Load Demo Fixture` in the real Tk window.
+   - Feed each point through the existing result/view-model plotting path.
+   - Show progress, point count, and latest frequency changing with the curve.
 
 4. Gain and phase frame
    - Show gain dB with a plausible roll-off and mild noise.
@@ -54,15 +57,15 @@ Available local inputs:
    - Optional: show raw/reference/corrected fields from the CSV as a small data callout.
 
 5. Export/data frame
-   - Show MAT/CSV/TXT artifacts already present in `demo_data/`.
-   - Highlight that the same shape is accepted by the existing loader/export paths.
+   - Run a real MAT/CSV/TXT export into the capture's temporary directory.
+   - Show the resulting artifact receipt without presenting it as a hardware measurement.
 
-6. Evidence frame
-   - Show: no-hardware tests, architecture boundaries, and live hardware validation boundary.
-   - Recommended copy:
+6. README context outside the video
+   - Link the validation matrix and architecture notes next to the capture.
+   - Keep the supporting copy concise:
      `Core sweep math and persistence are testable without instruments; live hardware validation remains manual.`
 
-## Exact Manual Capture Steps
+## Exact Capture Steps
 
 1. Regenerate fixture data if needed:
 
@@ -70,48 +73,31 @@ Available local inputs:
    python scripts/generate_hyperframe_fixture.py
    ```
 
-2. Start the desktop app only in the capture environment:
+2. Install the macOS capture-only dependencies:
 
    ```bash
-   python src/main.py
+   python -m pip install -e ".[capture]"
    ```
 
-3. In the UI, choose `Load Demo Fixture`.
+3. Run the point replay:
 
-   If that action is unavailable in an older build, choose the load-measurement action and open:
-
-   ```text
-   demo_data/hyperframe_simulated_fixture.mat
+   ```bash
+   PYTHONPATH=src python scripts/capture_operator_console_point_replay.py
    ```
 
-4. Capture the loaded plot and settings area.
+4. Inspect early, middle, and final frames. Confirm 0/few points, a partial curve, 72/72, source badge, neutral
+   hardware state, reference coverage receipt, and the final export receipt.
 
-5. In Hyperframe, add a small persistent label:
-
-   ```text
-   No hardware - simulated fixture
-   ```
-
-6. Add one short data callout using `demo_data/hyperframe_simulated_fixture_metadata.json`:
-
-   ```text
-   source=mock_fixture; not live hardware validation
-   ```
-
-7. Add one short engineering callout:
-
-   ```text
-   Hardware side effects are isolated behind adapters; fixture replay exercises loader, plotting, and export shape.
-   ```
+5. Verify the poster/MP4 paths and keep the YouTube description explicit about simulated no-hardware data.
 
 ## Do Not Claim
 
 - Do not say the fixture is a live AWG/oscilloscope run.
 - Do not say the demo validates connected hardware.
-- Do not add an app-level demo-mode banner before the first capture.
 - Do not edit production instrument adapters for this capture.
+- Do not capture an unverified desktop region; use the resolved Tk CGWindowID.
 
-## If Hyperframe Automation Is Later Added
+## Implementation Boundary
 
-Prefer a separate capture helper that consumes the existing fixture files. Keep it outside production
-instrument code, and preserve the same visible no-hardware label in every exported clip.
+Capture automation remains under `scripts/`. It consumes checked-in fixture files and updates the existing
+Tk view-model/plot path. It never constructs production instrument ports or presents the temporary export as live data.

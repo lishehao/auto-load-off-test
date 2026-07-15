@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 from app.domain.models import AppSettings, SweepResult
 
 
@@ -35,4 +33,4 @@ class SaveArtifacts:
 @dataclass(slots=True)
 class LoadedMeasurement:
     result: SweepResult
-    raw_payload: dict[str, np.ndarray]
+    raw_payload: dict[str, Any]

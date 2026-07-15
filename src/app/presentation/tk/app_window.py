@@ -26,7 +26,7 @@ class AppWindow(tk.Tk):
         container.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
         container.grid_columnconfigure(0, weight=0, minsize=295)
         container.grid_columnconfigure(1, weight=1, minsize=640)
-        container.grid_columnconfigure(2, weight=0, minsize=340)
+        container.grid_columnconfigure(2, weight=0, minsize=355)
         container.grid_rowconfigure(0, weight=1)
 
         left = tk.Frame(container, bg="#f4f6f8", width=300)
@@ -42,13 +42,16 @@ class AppWindow(tk.Tk):
 
         right = tk.Frame(container, bg="#f4f6f8")
         right.grid(row=0, column=2, sticky="nsew")
+        right.grid_rowconfigure(0, weight=1)
+        right.grid_columnconfigure(0, weight=1)
 
         self.control_panel = self._build_sidebar(left)
 
         self.plot_widget = PlotWidget(center, self.vm)
         self.plot_widget.frame.grid(row=0, column=0, sticky="nsew")
 
-        self.run_panel = RunPanel(right, self.vm)
+        right_content = self._build_scrollable_content(right, width=340)
+        self.run_panel = RunPanel(right_content, self.vm)
         self.run_panel.pack(fill=tk.BOTH, expand=True)
         self._alias_control_widgets()
 
@@ -92,6 +95,7 @@ class AppWindow(tk.Tk):
         on_close,
         on_figure_change,
         on_mag_phase_change,
+        on_plot_scale_change,
     ) -> None:
         self.control_panel.bind_actions(
             on_save_settings=on_save_settings,
@@ -112,14 +116,24 @@ class AppWindow(tk.Tk):
         self.plot_widget.bind_controls(
             on_figure_change=on_figure_change,
             on_mag_phase_change=on_mag_phase_change,
+            on_plot_scale_change=on_plot_scale_change,
         )
         self._on_close = on_close
 
     def set_connection_status(self, awg_connected: bool, osc_connected: bool) -> None:
+        if self.vm.source_mode.get() != "live":
+            self.set_connection_idle()
+            return
         self.canvas_awg.itemconfig(self.awg_light, fill="green" if awg_connected else "red")
         self.canvas_osc.itemconfig(self.osc_light, fill="green" if osc_connected else "red")
         self.vm.awg_connection_text.set("AWG online" if awg_connected else "AWG offline")
         self.vm.osc_connection_text.set("OSC online" if osc_connected else "OSC offline")
+
+    def set_connection_idle(self) -> None:
+        self.canvas_awg.itemconfig(self.awg_light, fill="#94a3b8")
+        self.canvas_osc.itemconfig(self.osc_light, fill="#94a3b8")
+        self.vm.awg_connection_text.set("AWG not used")
+        self.vm.osc_connection_text.set("OSC not used")
 
     def on_close(self) -> None:
         if self._on_close is not None:
@@ -140,9 +154,16 @@ class AppWindow(tk.Tk):
         self.btn_test_connect = self.control_panel.btn_test_connect
         self.cmb_figure = self.plot_widget.cmb_figure
         self.cmb_mag_phase = self.plot_widget.cmb_mag_phase
+        self.cmb_plot_scale = self.plot_widget.cmb_plot_scale
 
     def _build_sidebar(self, parent: tk.Frame) -> ControlPanel:
-        canvas = tk.Canvas(parent, bg="#f4f6f8", highlightthickness=0, width=300)
+        content = self._build_scrollable_content(parent, width=300)
+        panel = ControlPanel(content, self.vm)
+        panel.pack(fill=tk.BOTH, expand=True)
+        return panel
+
+    def _build_scrollable_content(self, parent: tk.Frame, *, width: int) -> tk.Frame:
+        canvas = tk.Canvas(parent, bg="#f4f6f8", highlightthickness=0, width=width)
         scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=canvas.yview)
         content = tk.Frame(canvas, bg="#f4f6f8")
         window_id = canvas.create_window((0, 0), window=content, anchor="nw")
@@ -157,10 +178,7 @@ class AppWindow(tk.Tk):
 
         content.bind("<Configure>", resize_content)
         canvas.bind("<Configure>", resize_content)
-
-        panel = ControlPanel(content, self.vm)
-        panel.pack(fill=tk.BOTH, expand=True)
-        return panel
+        return content
 
     def _configure_style(self) -> None:
         style = ttk.Style(self)

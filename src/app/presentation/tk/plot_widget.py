@@ -7,6 +7,7 @@ import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+from app.domain.plotting import choose_frequency_scale
 from app.domain.models import SweepResult
 from app.presentation.tk.view_model import ViewModel
 from app.shared.cvt_tools import CvtTools
@@ -24,6 +25,8 @@ PHASE = Mapping.mapping_color_for_phase_line
 class PlotWidget:
     def __init__(self, parent: tk.Misc, vm: ViewModel) -> None:
         self._vm = vm
+        self._reference_coverage_hz: tuple[float, float] | None = None
+        self._reference_spans: list[object] = []
         self.frame = tk.Frame(parent, bg=PANEL_BG)
         self.frame.grid_rowconfigure(1, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
@@ -31,9 +34,10 @@ class PlotWidget:
         self._build_header()
         self._build_plots()
 
-    def bind_controls(self, *, on_figure_change, on_mag_phase_change) -> None:
+    def bind_controls(self, *, on_figure_change, on_mag_phase_change, on_plot_scale_change) -> None:
         self.cmb_figure.bind("<<ComboboxSelected>>", lambda _e: on_figure_change())
         self.cmb_mag_phase.bind("<<ComboboxSelected>>", lambda _e: on_mag_phase_change())
+        self.cmb_plot_scale.bind("<<ComboboxSelected>>", lambda _e: on_plot_scale_change())
 
     def _build_header(self) -> None:
         header = tk.Frame(self.frame, bg=CARD_BG, highlightbackground="#d9e0e8", highlightthickness=1)
@@ -95,6 +99,21 @@ class PlotWidget:
         )
         self.cmb_mag_phase.grid(row=1, column=1, sticky="ew", pady=(5, 0))
 
+        tk.Label(controls, text="X axis", bg=CARD_BG, fg=MUTED).grid(
+            row=2,
+            column=0,
+            sticky="e",
+            padx=(0, 6),
+        )
+        self.cmb_plot_scale = ttk.Combobox(
+            controls,
+            textvariable=self._vm.plot_scale,
+            values=["auto", "linear", "log"],
+            width=16,
+            state="readonly",
+        )
+        self.cmb_plot_scale.grid(row=2, column=1, sticky="ew", pady=(5, 0))
+
         tk.Label(
             controls,
             textvariable=self._vm.point_count_text,
@@ -102,7 +121,7 @@ class PlotWidget:
             fg=BLUE,
             font=("TkDefaultFont", 10, "bold"),
             anchor="e",
-        ).grid(row=2, column=0, columnspan=2, sticky="ew", pady=(7, 0))
+        ).grid(row=3, column=0, columnspan=2, sticky="ew", pady=(7, 0))
 
     def _build_plots(self) -> None:
         plot_card = tk.Frame(self.frame, bg=CARD_BG, highlightbackground="#d9e0e8", highlightthickness=1)
@@ -161,6 +180,9 @@ class PlotWidget:
             self._canvas_db.get_tk_widget().grid_remove()
             self._canvas_gain.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
 
+    def set_reference_coverage(self, minimum_hz: float, maximum_hz: float) -> None:
+        self._reference_coverage_hz = (min(minimum_hz, maximum_hz), max(minimum_hz, maximum_hz))
+
     def update_result(self, result: SweepResult, freq_unit: str, mag_phase_mode: str) -> None:
         freq_hz = np.array([p.freq_hz for p in result.points], dtype=float)
         gain = np.array([p.gain_linear for p in result.points], dtype=float)
@@ -183,6 +205,14 @@ class PlotWidget:
         self._line_phase_gain.set_data(px, py)
         self._line_phase_db.set_data(px, py)
 
+        x_scale = choose_frequency_scale(
+            freq_hz,
+            requested=self._vm.plot_scale.get(),
+            sweep_is_log=bool(self._vm.is_log.get()),
+        )
+        self._ax_gain.set_xscale(x_scale)
+        self._ax_db.set_xscale(x_scale)
+
         if mag_phase_mode == "magnitude":
             self._line_gain.set_visible(True)
             self._line_db.set_visible(True)
@@ -202,6 +232,7 @@ class PlotWidget:
         self._ax_gain.set_xlabel(f"Frequency ({freq_unit})")
         self._ax_db.set_xlabel(f"Frequency ({freq_unit})")
 
+        self._update_reference_spans(freq_hz=freq_hz, unit_scale=scale)
         self._autoscale()
         self._canvas_gain.draw_idle()
         self._canvas_db.draw_idle()
@@ -210,6 +241,30 @@ class PlotWidget:
         for ax in (self._ax_gain, self._ax_gain_right, self._ax_db, self._ax_db_right):
             ax.relim()
             ax.autoscale_view()
+
+    def _update_reference_spans(self, *, freq_hz: np.ndarray, unit_scale: float) -> None:
+        for span in self._reference_spans:
+            span.remove()
+        self._reference_spans.clear()
+        if self._reference_coverage_hz is None or freq_hz.size == 0:
+            return
+
+        data_min = float(np.min(freq_hz)) / unit_scale
+        data_max = float(np.max(freq_hz)) / unit_scale
+        ref_min = self._reference_coverage_hz[0] / unit_scale
+        ref_max = self._reference_coverage_hz[1] / unit_scale
+        left_end = min(ref_min, data_max)
+        right_start = max(ref_max, data_min)
+
+        for axis in (self._ax_gain, self._ax_db):
+            if data_min < left_end:
+                self._reference_spans.append(
+                    axis.axvspan(data_min, left_end, color="#f59e0b", alpha=0.10, zorder=0)
+                )
+            if right_start < data_max:
+                self._reference_spans.append(
+                    axis.axvspan(right_start, data_max, color="#f59e0b", alpha=0.10, zorder=0)
+                )
 
     def figures(self) -> dict[str, Figure]:
         return {"gain": self._fig_gain, "db": self._fig_db}

@@ -214,4 +214,6 @@ def _connection_chip_colors(text: str) -> tuple[str, str]:
         return "#ecfdf5", GREEN
     if "checking" in normalized or "connecting" in normalized or "scan" in normalized:
         return "#fff7ed", AMBER
+    if "not used" in normalized or "not evaluated" in normalized:
+        return "#f1f5f9", MUTED
     return "#fef2f2", RED

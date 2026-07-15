@@ -4,7 +4,7 @@
 
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(SPECPATH).resolve().parents[1]
 
 datas = [
     (str(ROOT / "demo_data"), "demo_data"),

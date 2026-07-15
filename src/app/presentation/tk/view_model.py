@@ -47,6 +47,8 @@ class ViewModel:
 
         self.figure_mode = tk.StringVar(root, value="gain")
         self.magnitude_phase_mode = tk.StringVar(root, value="magnitude")
+        self.plot_scale = tk.StringVar(root, value="auto")
+        self.source_mode = tk.StringVar(root, value="live")
 
         self.status_text = tk.StringVar(root, value="Ready")
         self.run_state_text = tk.StringVar(root, value="Idle")

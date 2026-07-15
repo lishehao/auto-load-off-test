@@ -51,12 +51,17 @@ class UiEventHandler:
             self.refresh_plot()
 
     def set_live_source(self) -> None:
+        self._vm.source_mode.set("live")
         self._vm.data_source_text.set("Live instrument path")
         self._vm.fixture_badge_text.set("")
         self._vm.validation_receipt_text.set("Live run requires operator hardware checks")
 
     def set_fixture_source(self, *, label: str, path_name: str) -> None:
         point_count = len(self._latest_result.points)
+        self._vm.source_mode.set("fixture")
+        self._vm.figure_mode.set("gain_db")
+        self._vm.magnitude_phase_mode.set("magnitude_phase")
+        self._vm.plot_scale.set("log")
         self._vm.data_source_text.set(f"Fixture replay · {path_name}")
         self._vm.fixture_badge_text.set("No hardware - simulated fixture")
         self._vm.validation_receipt_text.set(f"{label}; not live hardware validation")
@@ -66,14 +71,19 @@ class UiEventHandler:
             self._vm.progress_text.set(f"{point_count} / {point_count}")
             self._vm.latest_frequency_text.set(_format_frequency(self._latest_result.points[-1].freq_hz))
             self._vm.elapsed_text.set("00:00")
+        self._window.set_connection_idle()
+        self._window.plot_widget.set_mode("gain_db")
+        self.refresh_plot()
         self.record_event(f"Loaded simulated fixture: {path_name}")
 
     def set_loaded_source(self, *, path_name: str) -> None:
+        self._vm.source_mode.set("loaded")
         self._vm.data_source_text.set(f"Loaded measurement · {path_name}")
         self._vm.fixture_badge_text.set("")
         self._vm.validation_receipt_text.set("Loaded file; live hardware state not implied")
         self._vm.export_receipt_text.set("Loaded measurement; Save Data exports the current result")
         self._vm.run_state_text.set("Data loaded")
+        self._window.set_connection_idle()
         self.record_event(f"Loaded measurement: {path_name}")
 
     def set_reference_loaded(
