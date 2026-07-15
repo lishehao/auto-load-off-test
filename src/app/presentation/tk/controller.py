@@ -103,6 +103,7 @@ class TkController(EventEmitter):
             on_close=self.on_close,
             on_figure_change=self.on_figure_change,
             on_mag_phase_change=self.on_mag_phase_change,
+            on_plot_scale_change=self.on_plot_scale_change,
         )
         self._bind_reference_receipt_traces()
 
@@ -243,6 +244,10 @@ class TkController(EventEmitter):
             self._reference_interpolator = interpolator
             self._reference_curve = curve
             self._reference_path = Path(fp)
+            self.window.plot_widget.set_reference_coverage(
+                float(np.min(curve.freq_hz)),
+                float(np.max(curve.freq_hz)),
+            )
             self.vm.calibration_enabled.set(True)
             warnings = self._refresh_reference_receipt(record=True)
             if warnings:
@@ -280,6 +285,9 @@ class TkController(EventEmitter):
         self.window.plot_widget.set_mode(self.vm.figure_mode.get())
 
     def on_mag_phase_change(self) -> None:
+        self._ui_handler.refresh_plot()
+
+    def on_plot_scale_change(self) -> None:
         self._ui_handler.refresh_plot()
 
     def _load_measurement_from_path(self, path: Path, *, force_fixture: bool = False) -> None:

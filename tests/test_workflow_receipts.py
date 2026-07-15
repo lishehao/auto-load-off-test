@@ -34,6 +34,40 @@ class ReceiptViewModel:
         self.reference_receipt_text = FakeVar("No reference loaded")
         self.export_receipt_text = FakeVar("No export yet")
         self.event_history_text = FakeVar("No warnings or workflow events")
+        self.source_mode = FakeVar("live")
+        self.figure_mode = FakeVar("gain")
+        self.magnitude_phase_mode = FakeVar("magnitude")
+        self.plot_scale = FakeVar("auto")
+        self.data_source_text = FakeVar("Live instrument path")
+        self.fixture_badge_text = FakeVar("")
+        self.validation_receipt_text = FakeVar("")
+        self.run_state_text = FakeVar("Idle")
+        self.progress_text = FakeVar("0 / 0")
+        self.latest_frequency_text = FakeVar("-")
+        self.elapsed_text = FakeVar("00:00")
+        self.point_count_text = FakeVar("0 points")
+        self.freq_unit = FakeVar("Hz")
+
+
+class FakePlotWidget:
+    def __init__(self) -> None:
+        self.mode = "gain"
+        self.updated = False
+
+    def set_mode(self, mode: str) -> None:
+        self.mode = mode
+
+    def update_result(self, *_args) -> None:
+        self.updated = True
+
+
+class FakeWindow:
+    def __init__(self) -> None:
+        self.plot_widget = FakePlotWidget()
+        self.connection_idle = False
+
+    def set_connection_idle(self) -> None:
+        self.connection_idle = True
 
 
 class WorkflowReceiptTests(unittest.TestCase):
@@ -135,6 +169,30 @@ class WorkflowReceiptTests(unittest.TestCase):
         self.assertIn("Reference receipt updated", vm.event_history_text.get())
         self.assertIn("outside reference coverage", vm.event_history_text.get())
         self.assertIn("Export artifacts saved", vm.event_history_text.get())
+
+    def test_fixture_source_uses_bode_defaults_and_neutral_connection_state(self) -> None:
+        vm = ReceiptViewModel()
+        window = FakeWindow()
+        handler = UiEventHandler(window=window, vm=vm)
+        handler.set_result(
+            SweepResult(
+                points=[SweepPoint(freq_hz=1_000.0, gain_linear=1.0, gain_db=0.0, phase_deg=0.0)]
+            ),
+            refresh_plot=False,
+        )
+
+        handler.set_fixture_source(
+            label="Simulated no-hardware demo fixture",
+            path_name="hyperframe_simulated_fixture.mat",
+        )
+
+        self.assertEqual(vm.source_mode.get(), "fixture")
+        self.assertEqual(vm.figure_mode.get(), "gain_db")
+        self.assertEqual(vm.magnitude_phase_mode.get(), "magnitude_phase")
+        self.assertEqual(vm.plot_scale.get(), "log")
+        self.assertTrue(window.connection_idle)
+        self.assertEqual(window.plot_widget.mode, "gain_db")
+        self.assertTrue(window.plot_widget.updated)
 
 
 if __name__ == "__main__":
