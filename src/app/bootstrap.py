@@ -7,6 +7,7 @@ from app.application.use_cases.load_reference import LoadReferenceUseCase
 from app.application.use_cases.save_measurement import SaveMeasurementUseCase
 from app.application.use_cases.settings_use_case import SettingsUseCase
 from app.infrastructure.instruments.equips_factory import create_instrument_ports, resolve_visa_address
+from app.infrastructure.instruments.identity_probe import PyVisaIdentityProbe
 from app.infrastructure.instruments.resource_scanner import PyVisaResourceScanner
 from app.infrastructure.persistence.measurement_repo_mat_csv import MatCsvMeasurementRepository
 from app.infrastructure.persistence.reference_repo_mat import MatReferenceRepository
@@ -45,6 +46,7 @@ def build_desktop_app(paths: AppPaths | None = None) -> DesktopApp:
         load_measurement_use_case=LoadMeasurementUseCase(measurement_repo),
         load_reference_use_case=LoadReferenceUseCase(reference_repo),
         scanner=PyVisaResourceScanner(),
+        identity_probe=PyVisaIdentityProbe(),
         ports_factory=create_instrument_ports,
         resolve_address=resolve_visa_address,
         paths=app_paths,
@@ -54,4 +56,3 @@ def build_desktop_app(paths: AppPaths | None = None) -> DesktopApp:
 
 def run_desktop_app(paths: AppPaths | None = None) -> None:
     build_desktop_app(paths=paths).run()
-

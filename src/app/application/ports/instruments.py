@@ -41,6 +41,10 @@ class ResourceScannerPort(Protocol):
     def list_resources(self) -> tuple[str, ...]: ...
 
 
+class InstrumentIdentityProbePort(Protocol):
+    def identify(self, address: str, timeout_ms: int | None = None) -> str: ...
+
+
 @dataclass(slots=True)
 class InstrumentPorts:
     awg: AwgPort

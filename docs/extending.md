@@ -30,11 +30,18 @@ Use `AppPaths` instead of recomputing `Path(__file__).parents[...]` in new code.
 
 ## Adding A New Instrument
 
-1. Add or verify the model label in `src/app/shared/mapping.py`.
-2. Add the vendor driver mapping in `src/equips.py` only if the low-level SCPI behavior is known.
-3. Prefer adding behavior through `app.infrastructure.instruments` adapters rather than calling `equips.py` from UI or use cases.
+1. Add an `InstrumentCapability` profile in `src/app/domain/instrument_capabilities.py`.
+   Keep the profile conservative: include only supported channels, modes, limits, transports,
+   and safety notes that are known or explicitly marked as software assumptions.
+2. Register the model in `app.infrastructure.instruments.adapter_registry`.
+   Current production adapters may wrap `src/equips.py`, but the UI/use cases should not call
+   `equips.py` directly.
+3. Add or verify the vendor driver mapping in `src/equips.py` only when the low-level SCPI behavior
+   is known and can be bench-validated.
 4. Keep `AwgPort` / `OscPort` as the application contract.
-5. Add hardware-free tests with fake ports before doing live bench validation.
+5. Add hardware-free tests with fake ports and capability-aware validation before live bench validation.
+6. Add the model to live validation notes only after scan, IDN, configure, sweep, stop, and export have
+   been checked on the actual instrument.
 
 ## Adding A New Persistence Format
 
