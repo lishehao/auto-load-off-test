@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime
 import sys
 from pathlib import Path
-import tkinter as tk
 import unittest
 
 import numpy as np
@@ -17,7 +16,24 @@ from app.domain.enums import CorrectionMode
 from app.domain.models import ReferenceCurve, SweepPoint, SweepResult
 from app.infrastructure.persistence.settings_defaults import DefaultSettingsFactory
 from app.presentation.tk.ui_event_handler import UiEventHandler
-from app.presentation.tk.view_model import ViewModel
+
+
+class FakeVar:
+    def __init__(self, value: str = "") -> None:
+        self._value = value
+
+    def get(self) -> str:
+        return self._value
+
+    def set(self, value: str) -> None:
+        self._value = value
+
+
+class ReceiptViewModel:
+    def __init__(self) -> None:
+        self.reference_receipt_text = FakeVar("No reference loaded")
+        self.export_receipt_text = FakeVar("No export yet")
+        self.event_history_text = FakeVar("No warnings or workflow events")
 
 
 class WorkflowReceiptTests(unittest.TestCase):
@@ -105,8 +121,7 @@ class WorkflowReceiptTests(unittest.TestCase):
         self.assertEqual(len(receipt.artifacts), 4)
 
     def test_ui_handler_updates_reference_export_and_event_history_state(self) -> None:
-        root = tk.Tcl()
-        vm = ViewModel(root)
+        vm = ReceiptViewModel()
         handler = UiEventHandler(window=object(), vm=vm)
 
         handler.set_reference_loaded(

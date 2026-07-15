@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from typing import TYPE_CHECKING
 
 from app.application.events import (
     ConnectionStatusUpdated,
@@ -13,9 +14,10 @@ from app.application.events import (
     SweepWarning,
 )
 from app.domain.models import SweepResult
-from app.presentation.tk import dialogs
-from app.presentation.tk.app_window import AppWindow
-from app.presentation.tk.view_model import ViewModel
+
+if TYPE_CHECKING:
+    from app.presentation.tk.app_window import AppWindow
+    from app.presentation.tk.view_model import ViewModel
 
 
 class UiEventHandler:
@@ -132,7 +134,7 @@ class UiEventHandler:
             if event.code in {"READY", "FREQ_MISMATCH", "AMP_MISMATCH"}:
                 self._vm.status_text.set(event.message)
             else:
-                dialogs.show_warning(self._window, event.message)
+                _show_warning(self._window, event.message)
             return
 
         if isinstance(event, SweepFailed):
@@ -141,7 +143,7 @@ class UiEventHandler:
             self._window.btn_start.configure(state="normal")
             self._window.btn_stop.configure(state="disabled")
             self.record_event(event.message, level="Error")
-            dialogs.show_warning(self._window, event.message)
+            _show_warning(self._window, event.message)
             return
 
         if isinstance(event, SweepStopped):
@@ -178,3 +180,9 @@ def _format_frequency(freq_hz: float) -> str:
     if abs(freq_hz) >= 1_000:
         return f"{freq_hz / 1_000:.3g} kHz"
     return f"{freq_hz:.3g} Hz"
+
+
+def _show_warning(window: object, message: str) -> None:
+    from app.presentation.tk import dialogs
+
+    dialogs.show_warning(window, message)
