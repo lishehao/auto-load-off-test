@@ -14,7 +14,8 @@ This project is intentionally structured around extension seams rather than dire
 - Tk controller
 - runtime paths
 
-`src/main.py` should stay thin. If the app later gains CLI, scripted, or simulated run modes, add a new composition function instead of pushing more wiring into UI classes.
+`src/main.py` stays thin: it dispatches either the desktop composition root or the isolated `--package-smoke` path.
+Additional modes should receive their own composition function instead of pushing wiring into UI classes.
 
 ## Runtime Paths
 
@@ -52,7 +53,8 @@ For a new measurement format:
 1. Add a loader/exporter implementation in infrastructure.
 2. Keep `SweepResult` and `AppSettings` as the domain boundary.
 3. Add round-trip tests with temporary directories.
-4. Do not put file dialogs or Tk concerns in persistence code.
+4. Route arrays through strict domain validation; do not silently sort, deduplicate, or fill invalid measurement data.
+5. Do not put file dialogs or Tk concerns in persistence code.
 
 ## Adding A New UI Field
 

@@ -14,14 +14,18 @@ or:
 Simulated no-hardware demo fixture
 ```
 
-## What To Show
+## Current Capture
 
-1. Configure a sweep in the desktop UI with conservative AWG/oscilloscope settings.
-2. Use the UI's `Load Demo Fixture` action, or manually load `demo_data/hyperframe_simulated_fixture.mat`.
-3. Show the plotted gain and phase response.
-4. Show the exported CSV/MAT/TXT fields, including raw, reference, and corrected values.
-5. Close with a short architecture/testing frame:
-   UI -> application use case -> domain DSP -> persistence/instrument ports.
+The checked-in point replay starts at 0/72, feeds one deterministic point per frame, and ends at 72/72 with:
+
+- gain dB and phase on a log-frequency axis
+- latest frequency and progress updates
+- `AWG/OSC not used` state
+- the loaded 72-point reference, coverage, phase, and dual-correction receipt
+- source and no-hardware validation receipts
+- a real temporary MAT/CSV/TXT export receipt
+
+The capture is the actual Tkinter window, not a concept mockup or browser recreation.
 
 For the first fixture-replay capture, use the concrete storyboard in
 [`docs/hyperframe_capture_plan.md`](hyperframe_capture_plan.md).
@@ -45,7 +49,10 @@ oscilloscope, VISA/LAN access, DUT limits, and operator safety checks.
 ## Regenerate
 
 ```bash
-python scripts/generate_hyperframe_fixture.py
+python -m pip install -e ".[capture]"
+PYTHONPATH=src python scripts/capture_operator_console_point_replay.py
 ```
 
-The generator uses a fixed seed so the fixture remains reproducible across machines.
+On macOS, the helper resolves the Tk CGWindowID through Quartz, rejects suspicious partial frames, flattens window
+alpha before H.264 encoding, and falls back to a bundled ffmpeg when the system executable is unusable. Fixture data
+itself can still be regenerated with `python scripts/generate_hyperframe_fixture.py`; the generator uses a fixed seed.

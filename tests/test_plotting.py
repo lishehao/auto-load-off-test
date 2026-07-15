@@ -31,6 +31,10 @@ class PlottingPolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsupported frequency scale"):
             choose_frequency_scale([1.0, 2.0], requested="decade")
 
+    def test_requested_log_waits_for_first_frequency(self) -> None:
+        self.assertEqual(choose_frequency_scale([], requested="log"), "linear")
+        self.assertEqual(choose_frequency_scale([1_000.0], requested="log"), "log")
+
 
 if __name__ == "__main__":
     unittest.main()

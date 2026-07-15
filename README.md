@@ -15,14 +15,14 @@ It turns a repetitive manual lab workflow into a layered application:
 
 ## Evidence Status
 
-This table is intentionally conservative. Update it when draft work merges or live bench validation becomes available.
+This table is intentionally conservative. See the detailed [validation matrix](docs/validation_matrix.md).
 
-| Surface | Public status | Safe claim |
+| Surface | Inspectable evidence | Boundary |
 | --- | --- | --- |
-| `main` branch | Layered Tkinter desktop app with hardware-free tests, deterministic fixture demo, measurement export, operator guide, architecture notes, and safety notes. | Software engineering maturity for a lab-automation workflow; hardware-free validation only. |
-| [Draft PR #6](https://github.com/lishehao/auto-load-off-test/pull/6) | Draft capability/discovery/packaging sprint with public CI success on the PR head. Not merged into `main` yet. | In-review follow-up work for model capability profiles, mockable discovery/test-connect, and Windows packaging notes. |
-| [Draft PR #7](https://github.com/lishehao/auto-load-off-test/pull/7) | Draft calibration/export workflow receipt sprint stacked on PR #6. Main-target CI may not run until it is retargeted. Not merged into `main` yet. | In-review UI polish for reference coverage receipts, export artifact receipts, and non-modal workflow warnings. |
-| Live instruments | No current public evidence of live AWG/oscilloscope validation. | Do not claim live instrument validation; use the project as hardware-free software and workflow evidence. |
+| Hardware-free core | Cross-platform unit tests, fake instrument ports, capability-aware preflight, strict measurement/reference validation, and a deterministic fixture/reference/correction/export/reload workflow. | Validates software behavior and data contracts without instruments. |
+| Operator console | Real Tkinter window capture with 72-point replay, log Bode display, progress, source/safety receipts, and MAT/CSV/TXT export. | The replay is simulated and explicitly labeled; production instrument adapters are not used. |
+| Windows distribution | PyInstaller one-folder build plus an automated packaged fixture/export/reload smoke and machine-readable receipt. | Does not install VISA drivers, prove Windows GUI rendering on every host, or validate connected instruments. |
+| Live instruments | Capability profiles and production adapters are present, but there is no current public bench-validation record. | Do not claim live AWG/oscilloscope, metrology, or production-system validation. |
 
 ## Demo
 
@@ -30,14 +30,16 @@ This table is intentionally conservative. Update it when draft work merges or li
 
 [Watch the point-by-point operator console demo on YouTube](https://youtu.be/fYokRzNnm84)
 
-This capture shows the real Tkinter operator console replaying a deterministic 72-point fixture
-point by point. It demonstrates the UI, plotting, progress/status updates, source receipt, and export
-workflow without connected instruments.
+The published YouTube walkthrough shows the real Tkinter operator console replaying a deterministic 72-point
+fixture point by point. The repository poster and local MP4 are a newer recapture of the same workflow; they
+also show the log-frequency gain/phase display, progress and latest-frequency updates, neutral `AWG/OSC not used`
+status, the loaded 72-point reference/coverage receipt, and an export receipt.
 
 It is labeled `No hardware - simulated fixture`: the production AWG/oscilloscope adapters are not used
 in this demo, and it is not live hardware validation.
 
-For offline review, the same capture is available as a [local MP4 fallback](docs/images/auto-load-off-test-point-replay-demo.mp4).
+For offline review, the recaptured current-UI artifact is available as a
+[local MP4 fallback](docs/images/auto-load-off-test-point-replay-demo.mp4).
 
 ## Why It Exists
 
@@ -53,8 +55,9 @@ src/
     runtime/                 runtime paths and environment helpers
     presentation/tk/        Tkinter UI and plotting
     application/            use cases, DTOs, events, ports
-    domain/                 pure models, validation, sweep math, DSP
-    infrastructure/         instrument adapters and persistence
+    domain/                 models, capability profiles, validation, sweep math, DSP
+    infrastructure/         adapter registry, discovery, instrument IO, persistence
+    demo/                   deterministic no-hardware fixture and package smoke
   equips.py                 legacy vendor/instrument compatibility layer
 ```
 
@@ -68,14 +71,16 @@ flowchart LR
   APP --> PERSIST["Settings + Measurement Persistence"]
 ```
 
-The UI and use cases do not call `src/equips.py` directly. That file is treated as a legacy vendor compatibility layer and is wrapped by infrastructure adapters.
+The UI and use cases do not call `src/equips.py` directly. That file is treated as a legacy vendor compatibility
+layer and is wrapped by registered infrastructure adapters. Supported model metadata comes from the capability
+registry rather than UI string dispatch.
 
 ## Requirements
 
 - Python 3.10 or newer
 - Tkinter, usually included with the Python installer on macOS/Windows
 - For live instrument use:
-  - supported AWG and oscilloscope models from `src/app/shared/mapping.py`
+  - a model with a registered capability profile and production adapter
   - VISA access through `pyvisa` / `pyvisa-py`
   - a working VISA backend for the connection type, such as NI-VISA / Keysight IO Libraries for LAN/USB/GPIB or the extra USB/GPIB libraries required by `pyvisa-py`
   - correct LAN/VISA addresses for the instruments
@@ -124,7 +129,10 @@ For packaged installs or lab workstations, set `AUTO_LOAD_OFF_TEST_ROOT` to an e
 PYTHONPATH=src python -m unittest discover -s tests
 ```
 
-The test suite uses pure domain tests and mocked instrument ports. It covers sweep generation, signal processing, settings serialization, measurement I/O, start-sweep event flow, and the sweep task runner.
+The suite covers sweep generation, DSP, capability validation, adapter/discovery fakes, settings serialization,
+strict measurement/reference schemas, deterministic calibration/export round trips, UI receipt state, task-runner
+cleanup, and the no-hardware package smoke. CI runs the suite on Linux, macOS, and Windows and also builds the
+Windows one-folder artifact.
 
 ## Output Files
 
@@ -158,6 +166,7 @@ See [docs/safety.md](docs/safety.md) for stop/shutdown behavior and hardware ass
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Validation Matrix](docs/validation_matrix.md)
 - [Operator Guide](docs/operator_guide.md)
 - [Safety Notes](docs/safety.md)
 - [Extending The Application](docs/extending.md)
@@ -170,14 +179,19 @@ See [docs/safety.md](docs/safety.md) for stop/shutdown behavior and hardware ass
 ## Evidence Map
 
 - Architecture and code boundaries: [docs/architecture.md](docs/architecture.md)
+- Hardware-free vs live validation boundary: [docs/validation_matrix.md](docs/validation_matrix.md)
 - Operator workflow: [docs/operator_guide.md](docs/operator_guide.md)
 - Hardware and safety boundary: [docs/safety.md](docs/safety.md)
 - No-hardware fixture/demo boundary: [docs/hyperframe_demo.md](docs/hyperframe_demo.md)
 - Deterministic demo data: [demo_data/README.md](demo_data/README.md)
+- End-to-end fixture correction/export test: [tests/test_hardware_free_workflow.py](tests/test_hardware_free_workflow.py)
+- Packaged no-hardware smoke: [src/app/demo/package_smoke.py](src/app/demo/package_smoke.py)
 - CI workflow: [.github/workflows/ci.yml](.github/workflows/ci.yml)
 
 ## Project Status
 
 The refactored app is local, single-process, and hardware-adapter based. Its strongest engineering signal is the separation between UI, use-case orchestration, pure domain logic, persistence, and instrument side effects.
 
-Current public validation is hardware-free: unit tests, mocked/fake instrument paths, deterministic fixture loading/replay, export round trips, and documentation checks. Live hardware validation remains future work and should not be claimed from this repository alone.
+Current public validation is hardware-free: cross-platform tests, mocked/fake instrument paths, strict data
+contracts, deterministic fixture correction/replay, export round trips, a real Tk UI capture, and a packaged
+Windows smoke. Live hardware validation remains future work and should not be claimed from this repository alone.

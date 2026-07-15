@@ -8,12 +8,16 @@ This project is not a certified production test platform. It does not replace la
 
 ## Hardware Assumptions
 
-- Supported model labels are defined in `src/app/shared/mapping.py`.
+- Supported model metadata is defined in `src/app/domain/instrument_capabilities.py`; the UI model list is derived
+  from that registry.
 - Model capability profiles provide software preflight checks for supported channels, modes, and known limits.
   They are not a substitute for instrument manuals or live bench validation.
 - Live operation uses VISA/LAN/serial access through `src/equips.py` via infrastructure adapters.
 - Default settings are conservative examples, not a guarantee that a connected DUT is safe.
 - The operator must verify AWG amplitude, frequency range, impedance, coupling mode, oscilloscope vertical range, and trigger configuration before starting a sweep.
+
+Capability preflight prevents known-invalid software selections. It cannot detect probe attenuation, cabling,
+termination errors, DUT limits, stale instrument firmware behavior, or incorrect capability source data.
 
 ## Stop And Shutdown Behavior
 
@@ -42,6 +46,9 @@ Before live measurement:
 5. Keep physical access to instrument front panels and emergency stop procedures.
 
 Automated tests use mocked ports and do not validate real hardware behavior.
+
+See [validation_matrix.md](validation_matrix.md) for the distinction between fake-port cleanup tests and electrical
+output-off validation, which has not been performed.
 
 ## Runtime File Location
 

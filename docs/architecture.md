@@ -24,7 +24,8 @@ flowchart LR
   - Use-case orchestration for start/stop sweep, save/load, reference loading, and settings.
   - Emits typed events for UI; no Tk widgets or message boxes.
 - `app/domain`
-  - Pure dataclasses, enums, instrument capability profiles, validation, sweep generation, DSP, calibration, and export array shaping.
+  - Pure dataclasses, enums, instrument capability profiles, capability preflight, strict data validation,
+    sweep generation, DSP, calibration, plot-scale selection, and export array shaping.
 - `app/infrastructure`
   - Adapter registry and wrappers around `src/equips.py`.
   - JSON settings and MAT/CSV/TXT persistence.
@@ -61,9 +62,10 @@ Forbidden:
 
 ## Instrument Access
 
-- Instrument model and address resolution go through `equips_factory`.
 - Supported model metadata is declared in `domain/instrument_capabilities.py`.
-- Adapter construction goes through the explicit infrastructure adapter registry.
+- Adapter construction goes through `infrastructure/instruments/adapter_registry.py`; unsupported model/role
+  combinations fail before the legacy vendor layer is entered.
+- Address resolution remains isolated in infrastructure and is injected into the controller/discovery service.
 - AWG and OSC commands are executed through `AwgPort` and `OscPort` adapters.
 - Connection scanning is provided by `PyVisaResourceScanner`, `ConnectionMonitor`, and the
   discovery/test-connect service. Test-connect uses short `*IDN?` probes and does not start a sweep.
@@ -77,6 +79,29 @@ Forbidden:
 
 Runtime locations are centralized through `AppPaths` in `app/runtime/paths.py`.
 
+Measurement and reference loaders normalize data through `domain/data_validation.py`. Frequencies must be finite,
+positive, unique, and strictly increasing; gain arrays must be finite and aligned; phase may be absent but cannot
+contain infinity. Export validates the `SweepResult` again before writing.
+
+## Hardware-Free Evidence Flow
+
+```mermaid
+flowchart LR
+  FIXTURE["Deterministic fixture"] --> LOAD["Strict measurement loader"]
+  REF["Reference fixture"] --> CAL["Reference interpolator"]
+  LOAD --> CAL
+  CAL --> EXPECTED["Expected corrected gain and phase"]
+  EXPECTED --> EXPORT["MAT / CSV / TXT exporter"]
+  EXPORT --> RELOAD["MAT / CSV reload checks"]
+  RELOAD --> RECEIPT["Source and no-hardware receipt"]
+```
+
+The package smoke follows a smaller bundled-resource path: fixture/reference load, interpolation, export, reload,
+and a JSON receipt. It intentionally does not initialize Tk, scan VISA resources, or construct production adapters.
+
 ## Test Strategy
 
-The automated tests stay hardware-free by using pure domain tests and fake instrument ports. Live instrument verification remains a manual/operator workflow.
+The automated suite stays hardware-free through pure domain tests, fake ports, fake scanners/identity probes,
+temporary export directories, and deterministic fixtures. CI exercises the suite on Linux, macOS, and Windows;
+Windows additionally builds and runs the PyInstaller smoke. See [validation_matrix.md](validation_matrix.md) for the
+exact claim boundary. Live instrument verification remains a separate future bench workflow.

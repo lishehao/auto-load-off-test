@@ -93,6 +93,8 @@ Complete this manual UI smoke before using a build as visual demo evidence:
 This smoke check validates packaged UI/data workflow only. It is not live
 hardware validation.
 
+See [validation_matrix.md](validation_matrix.md) for the broader software, UI, package, and live-bench evidence split.
+
 ## Live-Hardware Packaging Smoke
 
 Do this only on a real lab workstation:

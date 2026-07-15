@@ -11,11 +11,13 @@ def choose_frequency_scale(
 ) -> str:
     if requested not in {"auto", "linear", "log"}:
         raise ValueError(f"Unsupported frequency scale: {requested}")
+    freq = np.atleast_1d(np.asarray(freq_hz, dtype=float).squeeze())
+    if freq.size == 0:
+        return "linear"
     if requested != "auto":
         return requested
 
-    freq = np.atleast_1d(np.asarray(freq_hz, dtype=float).squeeze())
-    if freq.size == 0 or np.any(~np.isfinite(freq)) or np.any(freq <= 0.0):
+    if np.any(~np.isfinite(freq)) or np.any(freq <= 0.0):
         return "linear"
     if sweep_is_log:
         return "log"

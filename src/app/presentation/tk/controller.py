@@ -240,24 +240,27 @@ class TkController(EventEmitter):
             return
 
         try:
-            curve, interpolator = self.load_reference_use_case.execute(str(fp))
-            self._reference_interpolator = interpolator
-            self._reference_curve = curve
-            self._reference_path = Path(fp)
-            self.window.plot_widget.set_reference_coverage(
-                float(np.min(curve.freq_hz)),
-                float(np.max(curve.freq_hz)),
-            )
-            self.vm.calibration_enabled.set(True)
-            warnings = self._refresh_reference_receipt(record=True)
-            if warnings:
-                self.vm.status_text.set("Reference loaded with coverage warning")
-            else:
-                self.vm.status_text.set("Reference loaded")
+            self.load_reference_from_path(fp)
             dialogs.show_info(self.window, "Reference loaded")
         except Exception as exc:  # noqa: BLE001
             self._ui_handler.record_event(f"Reference load failed: {exc}", level="Warning")
             dialogs.show_warning(self.window, f"Failed to load reference: {exc}")
+
+    def load_reference_from_path(self, path: str | Path, *, record: bool = True) -> tuple[str, ...]:
+        """Load a reference without a file dialog for tests and reproducible demo tooling."""
+        reference_path = Path(path)
+        curve, interpolator = self.load_reference_use_case.execute(str(reference_path))
+        self._reference_interpolator = interpolator
+        self._reference_curve = curve
+        self._reference_path = reference_path
+        self.window.plot_widget.set_reference_coverage(
+            float(np.min(curve.freq_hz)),
+            float(np.max(curve.freq_hz)),
+        )
+        self.vm.calibration_enabled.set(True)
+        warnings = self._refresh_reference_receipt(record=record)
+        self.vm.status_text.set("Reference loaded with coverage warning" if warnings else "Reference loaded")
+        return warnings
 
     def on_scan_resources(self) -> None:
         try:
