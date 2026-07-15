@@ -5,28 +5,20 @@ from collections.abc import Callable
 import numpy as np
 from scipy.interpolate import make_interp_spline
 
+from app.domain.data_validation import normalize_reference_curve
 from app.domain.models import ReferenceCurve, SweepPoint
 
 
 def build_reference_interpolator(curve: ReferenceCurve) -> Callable[[np.ndarray], np.ndarray]:
-    freq = np.atleast_1d(np.asarray(curve.freq_hz, dtype=float).squeeze())
-    gain_db = np.atleast_1d(np.asarray(curve.gain_db, dtype=float).squeeze())
-    phase = None if curve.phase_deg is None else np.atleast_1d(np.asarray(curve.phase_deg, dtype=float).squeeze())
-
-    if freq.size == 0:
-        raise ValueError("Reference frequency data is empty")
+    normalized = normalize_reference_curve(curve)
+    freq = normalized.freq_hz
+    gain_db = normalized.gain_db
+    phase = normalized.phase_deg
 
     if phase is None or phase.size == 0:
         href = 10 ** (gain_db / 20.0)
     else:
         href = 10 ** (gain_db / 20.0) * np.exp(1j * np.deg2rad(phase))
-
-    order = np.argsort(freq)
-    freq = freq[order]
-    href = href[order]
-
-    freq, unique_idx = np.unique(freq, return_index=True)
-    href = href[unique_idx]
 
     if freq.size == 1:
         h0 = href[0]

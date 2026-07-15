@@ -405,7 +405,7 @@ def dialogs_to_target(path, window: AppWindow):
     )
 
 
-def _describe_loaded_source(path: Path, raw_payload: dict[str, np.ndarray]) -> dict[str, object]:
+def _describe_loaded_source(path: Path, raw_payload: dict[str, object]) -> dict[str, object]:
     source = _payload_text(raw_payload, "source")
     label = _payload_text(raw_payload, "demo_label") or "Loaded fixture"
     is_fixture = source == "mock_fixture" or "hyperframe_simulated_fixture" in path.name
@@ -415,7 +415,7 @@ def _describe_loaded_source(path: Path, raw_payload: dict[str, np.ndarray]) -> d
     }
 
 
-def _payload_text(payload: dict[str, np.ndarray], key: str) -> str:
+def _payload_text(payload: dict[str, object], key: str) -> str:
     value = payload.get(key)
     if value is None:
         return ""

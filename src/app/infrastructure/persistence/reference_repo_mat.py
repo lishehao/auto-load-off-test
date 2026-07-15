@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.io import loadmat
 
+from app.domain.data_validation import DataValidationError, normalize_reference_curve
 from app.domain.models import ReferenceCurve
 
 
@@ -14,7 +15,7 @@ class MatReferenceRepository:
         gain_db = self._get_array(payload, ["gain_db", "gain_db_raw", "gain_db_corr"])
         phase = self._get_array(payload, ["phase_deg", "phase", "phase_deg_corr"], required=False)
 
-        return ReferenceCurve(freq_hz=freq, gain_db=gain_db, phase_deg=phase)
+        return normalize_reference_curve(ReferenceCurve(freq_hz=freq, gain_db=gain_db, phase_deg=phase))
 
     def _get_array(
         self,
@@ -26,7 +27,7 @@ class MatReferenceRepository:
         for key in keys:
             value = payload.get(key)
             if isinstance(value, np.ndarray):
-                return np.asarray(value, dtype=float).squeeze()
+                return np.atleast_1d(np.asarray(value, dtype=float).squeeze())
         if required:
-            raise ValueError(f"Missing required keys: {keys}")
+            raise DataValidationError(f"Missing required reference keys: {keys}")
         return None
