@@ -49,7 +49,8 @@ class RunPanel(tk.Frame):
         self._build_run_card(1)
         self._build_export_card(2)
         self._build_source_card(3)
-        self._build_safety_card(4)
+        self._build_event_card(4)
+        self._build_safety_card(5)
 
     def _title(self, text: str, row: int) -> None:
         label = tk.Label(
@@ -141,7 +142,8 @@ class RunPanel(tk.Frame):
         self.btn_load_settings = ttk.Button(actions, text="Load Settings")
         self.btn_load_settings.grid(row=2, column=1, sticky="ew")
 
-        self._wrapped_label(card, self._vm.export_receipt_text, 1, MUTED)
+        self._wrapped_label(card, self._vm.reference_receipt_text, 1, MUTED)
+        self._wrapped_label(card, self._vm.export_receipt_text, 2, MUTED)
 
     def _build_source_card(self, row: int) -> None:
         card = self._card("Source receipt", row)
@@ -172,6 +174,10 @@ class RunPanel(tk.Frame):
             line.grid(row=idx, column=0, sticky="ew", pady=2)
             tk.Label(line, text="□", bg=CARD_BG, fg=AMBER, width=2, anchor="w").pack(side=tk.LEFT)
             tk.Label(line, text=item, bg=CARD_BG, fg=TEXT, anchor="w").pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+    def _build_event_card(self, row: int) -> None:
+        card = self._card("Event history", row)
+        self._wrapped_label(card, self._vm.event_history_text, 0, MUTED)
 
     def _metric(
         self,

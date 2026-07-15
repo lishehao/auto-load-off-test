@@ -18,13 +18,15 @@ from app.application.services.instrument_discovery import (
     format_connection_receipt,
     format_scan_receipt,
 )
+from app.application.services.calibration_receipts import build_reference_receipt
+from app.application.services.export_receipts import build_export_receipt
 from app.application.services.sweep_task_runner import SweepTaskRunner
 from app.application.services.connection_monitor import ConnectionMonitor
 from app.application.use_cases.load_measurement import LoadMeasurementUseCase
 from app.application.use_cases.load_reference import LoadReferenceUseCase
 from app.application.use_cases.save_measurement import SaveMeasurementUseCase
 from app.application.use_cases.settings_use_case import SettingsUseCase
-from app.domain.models import InstrumentEndpoint
+from app.domain.models import InstrumentEndpoint, ReferenceCurve
 from app.presentation.tk import dialogs
 from app.presentation.tk.app_window import AppWindow
 from app.presentation.tk.mapper import settings_to_vm, vm_to_settings
@@ -61,6 +63,9 @@ class TkController(EventEmitter):
 
         self._event_queue: queue.Queue[object] = queue.Queue()
         self._reference_interpolator = None
+        self._reference_curve: ReferenceCurve | None = None
+        self._reference_path: Path | None = None
+        self._reference_trace_tokens: list[str] = []
         self._paths = paths or AppPaths.default()
         self._resolve_address = resolve_address
         self._connection_target_lock = threading.Lock()
@@ -99,6 +104,7 @@ class TkController(EventEmitter):
             on_figure_change=self.on_figure_change,
             on_mag_phase_change=self.on_mag_phase_change,
         )
+        self._bind_reference_receipt_traces()
 
         try:
             settings = self.settings_use_case.load()
@@ -122,6 +128,9 @@ class TkController(EventEmitter):
         try:
             settings = vm_to_settings(self.vm)
             self._ui_handler.set_live_source()
+            self._refresh_reference_receipt(record=True)
+            if bool(self.vm.calibration_enabled.get()) and self._reference_interpolator is None:
+                self._ui_handler.record_event("Calibration enabled but no reference loaded", level="Warning")
             self._refresh_connection_targets(settings)
             self._task_runner.start(
                 settings=settings,
@@ -176,9 +185,17 @@ class TkController(EventEmitter):
                 settings=settings,
                 target=dialogs_to_target(fp, self.window),
             )
-            self._ui_handler.set_export_saved(path_name=artifacts.mat_path.name)
+            receipt = build_export_receipt(
+                artifacts=artifacts,
+                settings=settings,
+                result=self._ui_handler.latest_result,
+                source_text=self.vm.data_source_text.get(),
+                fixture_badge_text=self.vm.fixture_badge_text.get(),
+            )
+            self._ui_handler.set_export_saved(receipt_text=receipt.summary)
             dialogs.show_info(self.window, f"Saved: {artifacts.mat_path.name}")
         except Exception as exc:  # noqa: BLE001
+            self._ui_handler.record_event(f"Save data failed: {exc}", level="Warning")
             dialogs.show_warning(self.window, f"Failed to save data: {exc}")
 
     def on_load_data(self) -> None:
@@ -222,12 +239,19 @@ class TkController(EventEmitter):
             return
 
         try:
-            _curve, interpolator = self.load_reference_use_case.execute(str(fp))
+            curve, interpolator = self.load_reference_use_case.execute(str(fp))
             self._reference_interpolator = interpolator
+            self._reference_curve = curve
+            self._reference_path = Path(fp)
             self.vm.calibration_enabled.set(True)
-            self._ui_handler.set_reference_loaded(path_name=Path(fp).name)
+            warnings = self._refresh_reference_receipt(record=True)
+            if warnings:
+                self.vm.status_text.set("Reference loaded with coverage warning")
+            else:
+                self.vm.status_text.set("Reference loaded")
             dialogs.show_info(self.window, "Reference loaded")
         except Exception as exc:  # noqa: BLE001
+            self._ui_handler.record_event(f"Reference load failed: {exc}", level="Warning")
             dialogs.show_warning(self.window, f"Failed to load reference: {exc}")
 
     def on_scan_resources(self) -> None:
@@ -237,6 +261,7 @@ class TkController(EventEmitter):
             self.vm.status_text.set("Resource scan completed")
         except Exception as exc:  # noqa: BLE001
             self.vm.discovery_status_text.set(f"Resource scan failed: {exc}")
+            self._ui_handler.record_event(f"Resource scan failed: {exc}", level="Warning")
             dialogs.show_warning(self.window, f"Resource scan failed: {exc}")
 
     def on_test_connect(self) -> None:
@@ -248,6 +273,7 @@ class TkController(EventEmitter):
             self.vm.status_text.set("Connection test completed")
         except Exception as exc:  # noqa: BLE001
             self.vm.discovery_status_text.set(f"Connection test failed: {exc}")
+            self._ui_handler.record_event(f"Connection test failed: {exc}", level="Warning")
             dialogs.show_warning(self.window, f"Connection test failed: {exc}")
 
     def on_figure_change(self) -> None:
@@ -329,6 +355,44 @@ class TkController(EventEmitter):
                 self.vm.awg_connection_text.set(text)
             else:
                 self.vm.osc_connection_text.set(text)
+
+    def _bind_reference_receipt_traces(self) -> None:
+        variables = [
+            self.vm.freq_unit,
+            self.vm.start_freq,
+            self.vm.stop_freq,
+            self.vm.calibration_enabled,
+            self.vm.correction_mode,
+            self.vm.trigger_mode,
+        ]
+        for variable in variables:
+            token = variable.trace_add("write", self._on_reference_setting_changed)
+            self._reference_trace_tokens.append(token)
+
+    def _on_reference_setting_changed(self, *_args) -> None:
+        self._refresh_reference_receipt(record=False)
+
+    def _refresh_reference_receipt(self, *, record: bool) -> tuple[str, ...]:
+        if self._reference_curve is None or self._reference_path is None:
+            return ()
+
+        try:
+            settings = vm_to_settings(self.vm)
+        except Exception:
+            settings = None
+
+        receipt = build_reference_receipt(
+            path=self._reference_path,
+            curve=self._reference_curve,
+            settings=settings,
+            calibration_enabled=bool(self.vm.calibration_enabled.get()),
+        )
+        self._ui_handler.set_reference_loaded(
+            receipt_text=receipt.summary,
+            warnings=receipt.warnings,
+            record=record,
+        )
+        return receipt.warnings
 
 
 def dialogs_to_target(path, window: AppWindow):

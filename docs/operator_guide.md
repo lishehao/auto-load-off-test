@@ -27,6 +27,10 @@ This guide summarizes the live workflow for the desktop app. The original Word g
 - Free-run mode captures without arming an edge trigger.
 - Triggered mode arms the selected oscilloscope trigger channel.
 
+After loading a reference MAT file, the right-side receipt shows the filename, directory, frequency coverage,
+point count, whether phase data exists, whether reference correction is active, and whether the current sweep
+range extends beyond the reference coverage. Out-of-range reference correction uses edge-clamped values.
+
 ## 4. Run A Sweep
 
 1. Review hardware settings and safety limits.
@@ -38,6 +42,9 @@ This guide summarizes the live workflow for the desktop app. The original Word g
 ## 5. Output Files
 
 Saving a measurement writes MAT, CSV, and TXT files. If plot figures are supplied, gain and gain-dB PNG files are also written.
+After a manual save, the export receipt shows the output directory, artifact list, source, correction mode,
+point count, timestamp, and whether the data came from the simulated no-hardware fixture path or a live-path run.
+The receipt is an operator aid; it is not live hardware validation by itself.
 
 The CSV columns are:
 
