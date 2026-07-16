@@ -1,197 +1,201 @@
-# Auto-Load-off-Test
+<h1 align="center">Auto-Load-off-Test</h1>
 
-[![CI](https://github.com/lishehao/auto-load-off-test/actions/workflows/ci.yml/badge.svg)](https://github.com/lishehao/auto-load-off-test/actions/workflows/ci.yml)
+<p align="center">
+  <strong>A layered Python/Tkinter operator console for repeatable AWG-oscilloscope sweep workflows.</strong>
+</p>
 
-Auto-Load-off-Test is a local Python desktop tool for AWG/oscilloscope sweep measurement, calibration, plotting, and data export.
+<p align="center">
+  Frequency sweep orchestration, gain/phase analysis, reference correction, operator receipts, and analysis-ready export.
+</p>
 
-It turns a repetitive manual lab workflow into a layered application:
+<p align="center">
+  <a href="https://github.com/lishehao/auto-load-off-test/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/lishehao/auto-load-off-test/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Python 3.10+" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white">
+  <img alt="Validation: hardware-free" src="https://img.shields.io/badge/validation-hardware--free-2e7d32">
+</p>
 
-- configure an arbitrary waveform generator (AWG)
-- configure oscilloscope acquisition channels
-- sweep frequency points
-- measure gain and optional phase
-- apply reference calibration
-- export MAT/CSV/TXT data and optional plot images
+<p align="center">
+  <a href="#demo">Demo</a> &middot;
+  <a href="#engineering-evidence">Engineering Evidence</a> &middot;
+  <a href="#architecture">Architecture</a> &middot;
+  <a href="#reproduce">Reproduce</a> &middot;
+  <a href="docs/case_study.md">Case Study</a>
+</p>
 
-## Evidence Status
+Auto-Load-off-Test refactors a tightly coupled lab script into a testable desktop application. The design separates
+operator UI, use-case orchestration, sweep and signal-processing logic, persistence, and model-specific instrument
+side effects. This makes the core workflow reproducible without requiring access to a physical lab bench.
 
-This table is intentionally conservative. See the detailed [validation matrix](docs/validation_matrix.md).
-
-| Surface | Inspectable evidence | Boundary |
-| --- | --- | --- |
-| Hardware-free core | Cross-platform unit tests, fake instrument ports, capability-aware preflight, strict measurement/reference validation, and a deterministic fixture/reference/correction/export/reload workflow. | Validates software behavior and data contracts without instruments. |
-| Operator console | Real Tkinter window capture with 72-point replay, log Bode display, progress, source/safety receipts, and MAT/CSV/TXT export. | The replay is simulated and explicitly labeled; production instrument adapters are not used. |
-| Windows distribution | PyInstaller one-folder build plus an automated packaged fixture/export/reload smoke and machine-readable receipt. | Does not install VISA drivers, prove Windows GUI rendering on every host, or validate connected instruments. |
-| Live instruments | Capability profiles and production adapters are present, but there is no current public bench-validation record. | Do not claim live AWG/oscilloscope, metrology, or production-system validation. |
+> **Validation boundary:** current public evidence is hardware-free. Production adapter paths are inspectable, but
+> this repository does not claim current live AWG/oscilloscope, metrology, or production-safety validation.
 
 ## Demo
 
-[![Auto-Load-off-Test point-by-point operator console replay](docs/images/auto-load-off-test-point-replay-demo.png)](https://youtu.be/fYokRzNnm84)
+[![Real Auto-Load-off-Test Tkinter operator console replay](docs/images/auto-load-off-test-point-replay-demo.png)](https://youtu.be/fYokRzNnm84)
 
-[Watch the point-by-point operator console demo on YouTube](https://youtu.be/fYokRzNnm84)
+<p align="center">
+  <a href="https://youtu.be/fYokRzNnm84"><strong>Watch the operator console demo on YouTube</strong></a>
+</p>
 
-The published YouTube walkthrough shows the real Tkinter operator console replaying a deterministic 72-point
-fixture point by point. The repository poster and local MP4 are a newer recapture of the same workflow; they
-also show the log-frequency gain/phase display, progress and latest-frequency updates, neutral `AWG/OSC not used`
-status, the loaded 72-point reference/coverage receipt, and an export receipt.
+The linked walkthrough and repository recapture both use the real Tkinter application to replay a deterministic
+72-point fixture from an empty plot to a complete Bode result. Progress, latest frequency, reference coverage,
+correction state, source metadata, and export receipts update during the run. The poster and
+[local MP4 fallback](docs/images/auto-load-off-test-point-replay-demo.mp4) show the newer current-UI recapture.
+Throughout both artifacts, the UI remains visibly labeled **No hardware - simulated fixture**; production instrument
+adapters are not invoked.
 
-It is labeled `No hardware - simulated fixture`: the production AWG/oscilloscope adapters are not used
-in this demo, and it is not live hardware validation.
+## Project At A Glance
 
-For offline review, the recaptured current-UI artifact is available as a
-[local MP4 fallback](docs/images/auto-load-off-test-point-replay-demo.mp4).
+| | |
+| --- | --- |
+| **Problem** | Manual generator/oscilloscope sweeps are repetitive, stateful, and easy to misconfigure. |
+| **Workflow** | Configure a sweep, acquire gain/phase, apply a reference, inspect progress and warnings, then export results. |
+| **Engineering approach** | Layered presentation, application, domain, persistence, and instrument-adapter boundaries. |
+| **Stack** | Python 3.10+, Tkinter/ttk, Matplotlib, NumPy, SciPy, PyVISA, PyInstaller. |
+| **Reproducible evidence** | Deterministic fixture/reference data, fake instrument ports, strict IO contracts, cross-platform CI, and a packaged Windows smoke. |
+| **Current boundary** | Software and no-hardware workflows are validated; connected instruments and electrical behavior are not. |
 
-## Why It Exists
+## Engineering Evidence
 
-Manual AWG/oscilloscope sweep measurements are repetitive and easy to misconfigure. This project separates the workflow into testable layers so the sweep math, signal processing, settings serialization, and use-case flow can be verified without physical instruments.
+### 1. Isolated hardware side effects
+
+Application services depend on explicit [AWG/oscilloscope ports](src/app/application/ports/instruments.py), not on
+vendor commands. A [capability registry](src/app/domain/instrument_capabilities.py) defines model constraints, while
+the [adapter registry](src/app/infrastructure/instruments/adapter_registry.py) resolves production and fake paths.
+The original [`equips.py`](src/equips.py) module remains isolated as a legacy compatibility layer instead of being
+broadly rewritten without a physical regression bench.
+
+### 2. Strict measurement and calibration contracts
+
+[Boundary validation](src/app/domain/data_validation.py) rejects missing fields, length mismatches, non-finite gain,
+and non-positive, duplicate, or unsorted frequencies. The deterministic
+[end-to-end workflow test](tests/test_hardware_free_workflow.py) reconstructs corrected gain and phase from raw plus
+reference curves, compares expected values, exports MAT/CSV/TXT, reloads MAT/CSV, and verifies source metadata.
+
+### 3. Operator state is part of the system design
+
+The console distinguishes `live`, `loaded`, and `fixture` data sources. Long-running sweeps report point-level
+progress without blocking the Tk event loop; stop, cleanup, reference coverage, correction, export artifacts, and
+safety warnings remain visible as receipts instead of disappearing in transient dialogs. See the
+[operator guide](docs/operator_guide.md) for the complete workflow.
+
+### 4. Distribution is tested as a workflow
+
+[GitHub Actions](.github/workflows/ci.yml) runs the hardware-free suite on Linux, macOS, and Windows, checks the code
+with Ruff, and builds a Windows PyInstaller one-folder artifact. The bundled
+[package smoke](src/app/demo/package_smoke.py) exercises fixture load, reference correction, export, and reload from
+the frozen executable and records `live_hardware_used: false`. This is packaging evidence, not a certified release
+or a live-VISA test.
 
 ## Architecture
 
-```text
-src/
-  main.py
-  app/
-    bootstrap.py             desktop composition root
-    runtime/                 runtime paths and environment helpers
-    presentation/tk/        Tkinter UI and plotting
-    application/            use cases, DTOs, events, ports
-    domain/                 models, capability profiles, validation, sweep math, DSP
-    infrastructure/         adapter registry, discovery, instrument IO, persistence
-    demo/                   deterministic no-hardware fixture and package smoke
-  equips.py                 legacy vendor/instrument compatibility layer
-```
-
 ```mermaid
 flowchart LR
-  UI["Tkinter UI"] --> APP["Application Use Cases"]
-  APP --> DOMAIN["Domain Models / Sweep / DSP"]
-  APP --> PORTS["Instrument Ports"]
-  PORTS --> INFRA["AWG / OSC Adapters"]
-  INFRA --> LEGACY["equips.py Vendor Layer"]
-  APP --> PERSIST["Settings + Measurement Persistence"]
+  UI["Tkinter operator console"] --> APP["Application use cases"]
+  DEMO["Deterministic fixtures and fakes"] --> APP
+  APP --> DOMAIN["Sweep, DSP, calibration, validation"]
+  APP --> PORTS["Instrument ports"]
+  PORTS --> REGISTRY["Capability and adapter registries"]
+  REGISTRY --> LEGACY["Legacy vendor compatibility layer"]
+  APP --> STORE["Settings and measurement persistence"]
+  STORE --> FILES["MAT / CSV / TXT / PNG"]
 ```
 
-The UI and use cases do not call `src/equips.py` directly. That file is treated as a legacy vendor compatibility
-layer and is wrapped by registered infrastructure adapters. Supported model metadata comes from the capability
-registry rather than UI string dispatch.
+The dependency direction keeps the domain and most application behavior independent from Tkinter, PyVISA, and the
+legacy driver module. More detail is available in the [architecture note](docs/architecture.md) and
+[case study](docs/case_study.md).
 
-## Requirements
+## Validation Evidence
 
-- Python 3.10 or newer
-- Tkinter, usually included with the Python installer on macOS/Windows
-- For live instrument use:
-  - a model with a registered capability profile and production adapter
-  - VISA access through `pyvisa` / `pyvisa-py`
-  - a working VISA backend for the connection type, such as NI-VISA / Keysight IO Libraries for LAN/USB/GPIB or the extra USB/GPIB libraries required by `pyvisa-py`
-  - correct LAN/VISA addresses for the instruments
+| Surface | Current evidence | What it does not prove |
+| --- | --- | --- |
+| Sweep, DSP, calibration, and IO | Automated tests using pure logic, temporary files, deterministic arrays, and fake ports. | Instrument timing, acquisition fidelity, or calibration uncertainty. |
+| Operator workflow | Actual Tkinter window capture from 0/72 through 72/72 with source, correction, progress, and export receipts. | A live sweep or connected-instrument workflow. |
+| Resource discovery and adapter selection | Mock scanners, identity probes, capability preflight, and registry/factory tests. | Real VISA enumeration, `*IDN?` behavior, or firmware compatibility. |
+| Windows packaging | CI-built one-folder executable plus frozen fixture/export/reload smoke. | Driver installation, code signing, every Windows theme, or live VISA access. |
+| Stop and output-off flow | Fake-port tests for cancellation, cleanup attempts, timeouts, and warning events. | Electrical shutdown latency or fail-safe behavior on hardware. |
+| Live bench and metrology | No current public validation record. | Any claim of live-instrument, metrology-grade, or production-certified operation. |
 
-Automated tests do not require AWG/OSC hardware.
+The detailed [validation matrix](docs/validation_matrix.md) maps each claim to inspectable evidence and lists wording
+that is not supported by the repository.
 
-## Install
+## Reproduce
+
+### Install and launch
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
-
-For development tooling:
-
-```bash
-python -m pip install -r requirements-dev.txt
-```
-
-The project also exposes an optional console script when installed as a package:
-
-```bash
 python -m pip install -e .
-auto-load-off-test
-```
-
-## Run The Desktop App
-
-```bash
 python src/main.py
 ```
 
-Settings and auto-save data are rooted at the process working directory unless `AUTO_LOAD_OFF_TEST_ROOT` is set. From the repo root, settings are stored at:
+On Windows, activate the environment with `.venv\Scripts\activate` before installing. The installed console entry
+point is also available as `auto-load-off-test`.
 
-```text
-__config__/settings.json
-```
+To inspect the workflow without instruments, launch the application and select **Load Demo Fixture**. The console
+will retain the simulated/no-hardware label throughout replay and export.
 
-For packaged installs or lab workstations, set `AUTO_LOAD_OFF_TEST_ROOT` to an explicit writable directory so settings and `__data__/measurement/` do not move when the app is launched from a different shell directory.
-
-## Run Tests Without Hardware
+### Run the hardware-free checks
 
 ```bash
 PYTHONPATH=src python -m unittest discover -s tests
+python -m ruff check src/app tests scripts
 ```
 
-The suite covers sweep generation, DSP, capability validation, adapter/discovery fakes, settings serialization,
-strict measurement/reference schemas, deterministic calibration/export round trips, UI receipt state, task-runner
-cleanup, and the no-hardware package smoke. CI runs the suite on Linux, macOS, and Windows and also builds the
-Windows one-folder artifact.
+The automated suite covers sweep generation, DSP, capability validation, adapter/discovery fakes, strict
+measurement/reference schemas, deterministic correction and export round trips, UI receipt state, task-runner
+cleanup, and the package smoke.
 
-## Output Files
+## Instrument Paths
 
-Saving a measurement writes:
+UI-visible capability profiles and legacy-compatible adapter paths currently exist for:
 
-- `*.mat`
-- `*.csv`
-- `*.txt`
-- `*_gain.png` and `*_gain_db.png` when plot figures are supplied
+| Role | Registered models |
+| --- | --- |
+| AWG | `DSG4102`, `DSG836` |
+| Oscilloscope | `MDO34`, `MDO3024`, `DHO1202`, `DHO1204` |
 
-Auto-save writes timestamped files under:
+These names describe registered software paths, not a current live-hardware compatibility certificate. Model limits,
+termination, coupling, transport, and validation status are defined in the
+[capability registry](src/app/domain/instrument_capabilities.py). Test-only mock models are hidden from the UI.
+
+## Data And Runtime Paths
+
+Saving a measurement can produce `*.mat`, `*.csv`, `*.txt`, and optional `*_gain.png` / `*_gain_db.png` plots.
+Exports preserve source, correction mode, point count, timestamp, and the simulated/live boundary when available.
+
+By default, settings and auto-save data are rooted at the launch directory:
 
 ```text
+__config__/settings.json
 __data__/measurement/
 ```
 
-Example result generated from `demo_data/Demo(2).mat`:
+Set `AUTO_LOAD_OFF_TEST_ROOT` to an explicit writable directory for packaged installations or lab workstations. See
+the [packaging guide](docs/packaging.md) for Windows prerequisites and the no-hardware smoke checklist.
 
-![Demo sweep result](docs/images/sweep_result.png)
+## Technical Documentation
 
-For application-material capture without connected instruments, see the deterministic Hyperframe fixture in
-`demo_data/hyperframe_simulated_fixture.*`. It should be labeled `No hardware - simulated fixture` and is not live
-hardware validation.
+| Topic | Document |
+| --- | --- |
+| Design decisions and tradeoffs | [Case Study](docs/case_study.md) |
+| Layer boundaries and dependencies | [Architecture](docs/architecture.md) |
+| Evidence levels and unsupported claims | [Validation Matrix](docs/validation_matrix.md) |
+| Setup, replay, run, correction, and export | [Operator Guide](docs/operator_guide.md) |
+| Stop behavior and operator responsibilities | [Safety Notes](docs/safety.md) |
+| Adding adapters, persistence, or UI behavior | [Extending The Application](docs/extending.md) |
+| Windows one-folder build and prerequisites | [Packaging](docs/packaging.md) |
+| Deterministic fixture design and provenance | [Demo Fixture](docs/hyperframe_demo.md) / [Demo Data](demo_data/README.md) |
 
-## Safety Notes
+## Scope And Safety
 
-This is a local lab automation tool, not a certified production test platform. Operators are responsible for confirming the connected instrument model, address, voltage range, frequency range, impedance, coupling, and device-under-test limits before running a live sweep.
+This is a local engineering tool, not a certified production test platform. Before any live run, an operator must
+confirm the physical instrument model and address, probe attenuation, voltage and frequency limits, termination,
+coupling, trigger behavior, and device-under-test constraints.
 
-See [docs/safety.md](docs/safety.md) for stop/shutdown behavior and hardware assumptions.
-
-## Documentation
-
-- [Architecture](docs/architecture.md)
-- [Validation Matrix](docs/validation_matrix.md)
-- [Operator Guide](docs/operator_guide.md)
-- [Safety Notes](docs/safety.md)
-- [Extending The Application](docs/extending.md)
-- [Packaging](docs/packaging.md)
-- [Case Study](docs/case_study.md)
-- [Hyperframe Demo Fixture](docs/hyperframe_demo.md)
-- [Hyperframe Capture Plan](docs/hyperframe_capture_plan.md)
-- [Demo Data](demo_data/README.md)
-
-## Evidence Map
-
-- Architecture and code boundaries: [docs/architecture.md](docs/architecture.md)
-- Hardware-free vs live validation boundary: [docs/validation_matrix.md](docs/validation_matrix.md)
-- Operator workflow: [docs/operator_guide.md](docs/operator_guide.md)
-- Hardware and safety boundary: [docs/safety.md](docs/safety.md)
-- No-hardware fixture/demo boundary: [docs/hyperframe_demo.md](docs/hyperframe_demo.md)
-- Deterministic demo data: [demo_data/README.md](demo_data/README.md)
-- End-to-end fixture correction/export test: [tests/test_hardware_free_workflow.py](tests/test_hardware_free_workflow.py)
-- Packaged no-hardware smoke: [src/app/demo/package_smoke.py](src/app/demo/package_smoke.py)
-- CI workflow: [.github/workflows/ci.yml](.github/workflows/ci.yml)
-
-## Project Status
-
-The refactored app is local, single-process, and hardware-adapter based. Its strongest engineering signal is the separation between UI, use-case orchestration, pure domain logic, persistence, and instrument side effects.
-
-Current public validation is hardware-free: cross-platform tests, mocked/fake instrument paths, strict data
-contracts, deterministic fixture correction/replay, export round trips, a real Tk UI capture, and a packaged
-Windows smoke. Live hardware validation remains future work and should not be claimed from this repository alone.
+Current evidence demonstrates software architecture, deterministic data handling, operator-state design, and
+hardware-free distribution testing. Live VISA discovery, model/firmware compatibility, electrical output-off
+latency, measurement uncertainty, calibration traceability, and safe DUT operation require a documented physical
+bench matrix and remain intentionally unclaimed. See [docs/safety.md](docs/safety.md) for the full boundary.
