@@ -16,7 +16,7 @@ class MatCsvMeasurementRepository:
         self._exporter = exporter or MeasurementExporter()
         self._loader = loader or MeasurementLoader()
 
-    def save(self, result: SweepResult, settings: AppSettings, target: SaveTarget) -> SaveArtifacts:
+    def save(self, result: SweepResult, settings: AppSettings | None, target: SaveTarget) -> SaveArtifacts:
         return self._exporter.export(result=result, settings=settings, target=target)
 
     def load(self, file_path: str) -> LoadedMeasurement:

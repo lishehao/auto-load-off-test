@@ -1,91 +1,129 @@
 # Operator Guide
 
-This guide summarizes live, loaded-file, and simulated-fixture workflows for the desktop app. The original Word guide
-in `UserGuide/` can remain as a detailed operator artifact, but this Markdown version is readable directly on GitHub.
+The desktop has two distinct workflows: file-based review and instrument acquisition. Opening the app does not
+scan or connect to instruments. File operations never instantiate production instrument ports.
 
-## 1. Connect Instruments
+## No-Hardware Walkthrough
 
-1. Connect the AWG output to the device under test.
-2. Connect the oscilloscope test channel to the measured output.
-3. For dual-channel correction, connect the oscilloscope reference channel.
-4. For triggered operation, connect or select the trigger channel.
-5. Confirm VISA/LAN visibility with the instrument scanner or external VISA tooling.
+1. Choose **Load Demo Fixture**. This loads the bundled 72-point measurement and reference.
+2. Choose **Replay Fixture** for incremental playback at 1x, 2x, or 4x.
+3. **Stop** retains the currently displayed points. Replay starts a fresh pass from zero.
+4. In the **Analysis** tab, choose a dataset, correction, and coverage policy.
+5. Choose **Apply Analysis**, then inspect the plot and reference receipt.
+6. **Save Data** saves the displayed MAT/CSV/TXT. **Export Report** creates a new reproducible report directory.
 
-Use `Scan Resources` to list addresses and `Test Connect` to issue the short identity probe. A connected receipt is
-useful setup evidence, but a successful identity query is not a sweep or safety validation.
+The persistent label is **No hardware - simulated fixture**. Playback is deterministic file replay, not an
+acquisition or a live validation result. The source label is independent of the editable hardware setup form.
 
-For a no-hardware review, use `Load Demo Fixture`. The UI changes the source state to fixture, labels the run
-`No hardware - simulated fixture`, and marks both instruments `not used`.
+## File Analysis And Reference Correction
 
-## 2. Configure Sweep Parameters
+**Load Data** accepts MAT/CSV. The application creates a private temporary input snapshot before parsing it.
+Changes to the original file after loading do not silently affect Apply or Export. Loading another file replaces
+the active document; **Reset Analysis** returns to that document's original snapshot, not an earlier file.
 
-- Start/stop frequency define the sweep range.
-- Linear mode uses a frequency step.
-- Log mode uses a step count.
-- AWG amplitude is configured in Vpp.
-- Oscilloscope range and offset define the vertical acquisition window.
-- Coupling and impedance should match the probe, DUT, and measurement setup.
-- The plot X-axis control supports `auto`, `linear`, and `log`. Fixture replay defaults to a log-frequency gain-dB and
-  phase view; an empty requested log plot remains safe until the first positive frequency arrives.
+| Option | Meaning |
+| --- | --- |
+| Dataset: canonical | Analyze the file's primary arrays. Known previous correction remains recorded. |
+| Dataset: raw | Use explicitly supplied raw gain/phase arrays in MAT. Missing raw arrays are an error. |
+| Correction: none | Preserve the selected input values; this does not undo prior correction. |
+| Correction: magnitude | Divide gain by the reference magnitude; preserve measured phase. |
+| Correction: complex | Correct gain and phase; requires phase at every measured and reference point. |
+| Coverage: reject | Reject correction when measured points lie outside reference coverage. |
+| Coverage: clamp | Explicitly permit endpoint clamping, with a recorded warning and point count. |
 
-## 3. Choose Correction And Trigger Mode
+For the bundled demo, use **raw + complex + reject** to reconstruct the corrected response. Its canonical arrays
+are already marked corrected and are protected against accidental double correction.
 
-- No correction: gain is computed against the configured AWG amplitude.
-- Dual-channel correction: gain and phase are computed against a measured reference channel.
-- Reference calibration: a loaded reference MAT file can correct measured points.
-- Free-run mode captures without arming an edge trigger.
-- Triggered mode arms the selected oscilloscope trigger channel.
+**Load Reference** only changes the available reference. It does not enable hardware calibration or modify the
+plot. The receipt shows the reference filename/path, frequency span, point count, phase availability, requested
+correction, and the correction on the displayed result. Coverage is compared with the loaded measurement, not
+with the unrelated future hardware sweep form.
 
-After loading a reference MAT file, the right-side receipt shows the filename, directory, frequency coverage,
-point count, whether phase data exists, whether reference correction is active, and whether the current sweep
-range extends beyond the reference coverage. Out-of-range reference correction uses edge-clamped values.
+**Apply Analysis** always starts from the original input snapshot. Repeated Apply does not compound corrections.
+A failed Apply leaves the previous valid plot and applied export options intact. Changing a selector without
+applying it also leaves the displayed result and report unchanged.
 
-## 4. Run A Sweep
+**Clear Reference** removes the available reference and turns off future hardware calibration. It does not undo
+already-corrected data. A report of previously applied analysis retains the exact reference snapshot used then.
+Use **Reset Analysis** to restore the original file result.
 
-1. Review hardware settings and safety limits.
-2. Start the sweep.
-3. Watch progress and warnings.
-4. Stop if the DUT, waveform, range, or instrument state looks wrong.
-5. Save the measurement if auto-save is disabled.
+## Results And Export
 
-## 5. Output Files
+**Save Data** writes the currently displayed values, including a stopped partial replay, as MAT/CSV/TXT. It stages
+files before publication and refuses collisions or symlinks. If publication fails, only files created by that
+attempt are removed. This is exception rollback, not a guarantee against power loss or process termination.
 
-Saving a measurement writes MAT, CSV, and TXT files. If plot figures are supplied, gain and gain-dB PNG files are also written.
-After a manual save, the export receipt shows the output directory, artifact list, source, correction mode,
-point count, timestamp, and whether the data came from the simulated no-hardware fixture path or a live-path run.
-The receipt is an operator aid; it is not live hardware validation by itself.
+**Export Report** creates a new directory containing:
+- `measurement.mat`, `measurement.csv`, `measurement.txt`
+- `bode.png`, `report.html`
+- `manifest.json` with input/artifact hashes and processing parameters
+- `inputs/` with stable measurement and, when applicable, reference snapshots
 
-The CSV columns are:
+The report uses the applied analysis options, not uncommitted selector changes. For a partial replay or hardware
+result, it snapshots the displayed points before offline report generation. **Open Output** opens only the last
+successful output directory in the OS file manager. The folder location and artifact list also remain in the
+receipt; a failed save leaves the previous successful output available.
 
-- `source`
-- `validation_boundary`
-- `correction_mode`
-- `freq_hz`
-- `gain_linear`
-- `gain_db`
-- `phase_deg`
+File-supplied acquisition provenance is retained but not independently verified. Offline processing does not
+prove that an imported file came from validated hardware. Missing phase remains missing, including visible gaps
+in the plot. See [offline_analysis.md](offline_analysis.md) for the file contract and headless CLI.
 
-Missing phase values are exported as blank cells in CSV and `nan` values in TXT/MAT arrays.
+## Hardware Setup And Acquisition
 
-## 6. Demo Data
+This path has code-level fake-port coverage, not current live bench validation.
 
-The files in `demo_data/` can be loaded through the measurement loader path to inspect historical/sampled measurement structure without instruments. See `demo_data/README.md`.
+1. Verify physical cabling, DUT limits, probe attenuation, termination, and instrument output state.
+2. Select the AWG/oscilloscope model and connection mode in **Instruments**.
+3. **Scan Resources** lists resource addresses; visibility alone is not a connection.
+4. **Test Connect** probes identity and displays model/address/backend/last-seen status. It does not acquire data.
+5. Configure frequency, amplitude, capture range/offset/points, channels, coupling, correction, and trigger mode.
+6. Confirm all three operator safety checks, then choose **Start Hardware**.
 
-## 7. Troubleshooting
+Linear sweeps use a frequency step; logarithmic sweeps use a point count. Invalid numbers fail explicitly.
+The software guards are 100,000 sweep points and 10,000,000 capture samples, not electrical capability guarantees.
 
-- No resources visible: check VISA backend, LAN connectivity, USB/GPIB cable, or serial permissions.
-- Sweep fails immediately: verify model label, address, impedance/coupling combinations, and numeric settings.
-- Cleanup warning after Stop or window close: verify the AWG front-panel output state before touching the DUT or starting another sweep.
-- Flat or clipped waveform: reduce AWG amplitude or adjust oscilloscope range/offset.
-- Unexpected phase: verify reference channel, trigger mode, and cable/probe delays.
-- Save/load failure: confirm output directory permissions and supported file suffixes.
+The left **Channels / Correction** controls affect future hardware acquisition. Dual-channel correction uses the
+measured reference channel; reference calibration additionally requires a loaded reference and an explicit
+calibration checkbox. This hardware calibration path retains its existing interpolation behavior, including
+endpoint clamping. The Analysis tab's reject/clamp choice applies to offline file analysis only.
 
-## 8. Review Artifacts
+During connection, the previous plot retains its original source. When a sweep starts, the plot is cleared and
+the source changes to the hardware path. Conflicting load/analyze/save/setup operations are disabled until the
+worker has stopped, cleaned up, and completed any requested auto-save.
 
-The current primary review artifacts are:
+**Stop** requests cancellation. Valid points completed before an error or during cancellation remain available,
+with a run status, termination reason, planned/completed counts, and error stage where relevant. Invalid points
+are rejected before they contaminate earlier results. Auto-save includes nonempty failed/stopped runs when enabled.
 
-- `docs/images/auto-load-off-test-point-replay-demo.png`: current real-Tk poster.
-- `docs/images/auto-load-off-test-point-replay-demo.mp4`: current point-by-point replay.
-- `docs/images/sweep_result.png`: older loaded-data plot example.
+Output-off and close are attempts, not electrical guarantees. A blocked driver call cannot be interrupted by a
+Python stop event. The window remains responsive while waiting; inspect the instrument front panel whenever
+shutdown is uncertain. See [safety.md](safety.md).
 
-Screenshots should be captured from the real desktop app rather than mocked or generated images.
+## History, Paths, And Troubleshooting
+
+The **History** tab retains the most recent 100 timestamped events. Sweep failure/cleanup diagnostics also persist
+under `__data__/logs/sweep-events.jsonl` in the per-user runtime root, including during window close.
+Logs remain local and may contain paths or instrument addresses; review before sharing.
+
+Runtime locations and bundled resource behavior are described in [packaging.md](packaging.md). Existing legacy
+cwd settings are not migrated automatically; set `AUTO_LOAD_OFF_TEST_ROOT` explicitly to reuse them.
+
+- Cannot launch Tk: use a Python distribution with Tcl/Tk installed; the offline CLI remains separate.
+- Missing resources: reinstall the wheel or rebuild; do not point the writable runtime root at the source fixture folder.
+- Reference correction rejected: inspect dataset, known prior correction, phase, and coverage in Analysis.
+- Export collision: choose a new base filename or report directory. Existing results are never silently replaced.
+- Discovery/connection failure: inspect VISA runtime and address settings only on a properly prepared lab workstation.
+- Cleanup warning: check the AWG output indicator and DUT state before touching the setup or starting again.
+
+## Local Desktop Validation
+
+```bash
+python scripts/smoke_desktop_workflow.py --output-dir /tmp/auto-desktop-smoke
+```
+
+This opt-in test requires a graphical desktop. It invokes real Tk callbacks, checks incremental replay/stop/restart,
+applies reference correction, saves data, exports a report, and checks both 1440x810 and 1280x760 layouts.
+On macOS, `--screenshots` captures the actual Tk window with the optional capture dependencies and existing
+Screen Recording permission. It does not exercise the native file chooser or physical instruments.
+
+The [acceptance record](validation/desktop-workflows-2026-09-12.md) records the tested candidate and remaining gaps.

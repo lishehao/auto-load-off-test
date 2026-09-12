@@ -54,8 +54,16 @@ still needs one of these paths configured:
 
 ## Runtime Data Paths
 
-Set `AUTO_LOAD_OFF_TEST_ROOT` on packaged workstations so settings and saved
-measurements do not depend on the launch directory:
+The default root is independent of the launch directory:
+
+| OS | Default root |
+| --- | --- |
+| Windows | `%APPDATA%/Auto-Load-off-Test` (LOCALAPPDATA/home fallback) |
+| macOS | `~/Library/Application Support/Auto-Load-off-Test` |
+| Linux | `$XDG_DATA_HOME/Auto-Load-off-Test` or `~/.local/share/Auto-Load-off-Test` |
+
+Set `AUTO_LOAD_OFF_TEST_ROOT` to override it, including to reuse a previous
+working-directory configuration intentionally:
 
 ```powershell
 $env:AUTO_LOAD_OFF_TEST_ROOT = "$env:LOCALAPPDATA\\AutoLoadOffTest"
@@ -65,8 +73,20 @@ The app writes:
 
 - `__config__/settings.json`
 - `__data__/measurement/`
+- `__data__/logs/sweep-events.jsonl` (local rotating diagnostic log)
 
 under that root.
+
+Old cwd-based settings are not moved or deleted. The two deterministic MAT resources are
+bundled as package data for wheel installs and as data files in the frozen build. They are
+resolved independently of the writable runtime root. Regenerate both source and packaged
+copies with `scripts/generate_hyperframe_fixture.py`; tests check they stay identical.
+
+The wheel includes application code and fixtures, not Tcl/Tk itself. The desktop entry needs
+a Python distribution with working Tk support; the offline `analyze` and `--package-smoke`
+commands do not. macOS is the UI acceptance target for the current desktop iteration;
+Windows UI validation is out of scope. Any future Windows GUI release claim would require
+its own target-Windows package and UI validation.
 
 ## No-Hardware Packaging Validation
 
@@ -87,8 +107,10 @@ Complete this manual UI smoke before using a build as visual demo evidence:
 3. Click `Load Demo Fixture`.
 4. Confirm the plot is visible and labeled `No hardware - simulated fixture`.
 5. Confirm the source receipt names `hyperframe_simulated_fixture.mat`.
-6. Click `Save Data` and verify MAT/CSV/TXT files are written to a writable path.
-7. Close the app and confirm no shutdown error appears.
+6. Click `Replay Fixture`, stop partway, then replay again; confirm partial and complete counts.
+7. In Analysis, choose raw / complex with the bundled reference and apply explicitly.
+8. Click `Save Data` and `Export Report`; verify numeric files and a new report directory.
+9. Close the app and confirm no shutdown error appears.
 
 This smoke check validates packaged UI/data workflow only. It is not live
 hardware validation.

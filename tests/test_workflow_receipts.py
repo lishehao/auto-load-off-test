@@ -10,6 +10,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from app.application.dto import SaveArtifacts
+from app.application.events import SweepAutoSaved, SweepFailed, SweepStarted, SweepStopped, SweepWorkerFinished
 from app.application.services.calibration_receipts import build_reference_receipt
 from app.application.services.export_receipts import build_export_receipt
 from app.domain.enums import CorrectionMode
@@ -41,6 +42,7 @@ class ReceiptViewModel:
         self.data_source_text = FakeVar("Live instrument path")
         self.fixture_badge_text = FakeVar("")
         self.validation_receipt_text = FakeVar("")
+        self.status_text = FakeVar("Ready")
         self.run_state_text = FakeVar("Idle")
         self.progress_text = FakeVar("0 / 0")
         self.latest_frequency_text = FakeVar("-")
@@ -193,6 +195,79 @@ class WorkflowReceiptTests(unittest.TestCase):
         self.assertTrue(window.connection_idle)
         self.assertEqual(window.plot_widget.mode, "gain_db")
         self.assertTrue(window.plot_widget.updated)
+
+    def test_started_event_clears_previous_result_and_preserves_planned_count(self) -> None:
+        vm = ReceiptViewModel()
+        window = FakeWindow()
+        handler = UiEventHandler(window=window, vm=vm)
+        handler.set_result(SweepResult(points=[SweepPoint(freq_hz=1.0, gain_linear=1.0, gain_db=0.0)]), refresh_plot=False)
+
+        handler.handle(SweepStarted(total_points=72))
+
+        self.assertTrue(handler.latest_result.is_empty)
+        self.assertEqual(vm.point_count_text.get(), "0 / 72 points")
+        self.assertEqual(vm.progress_text.get(), "0 / 72")
+
+    def test_failure_and_stop_keep_partial_results_without_enabling_start(self) -> None:
+        vm = ReceiptViewModel()
+        window = FakeWindow()
+        handler = UiEventHandler(window=window, vm=vm)
+        partial = SweepResult(
+            points=[SweepPoint(freq_hz=1.0, gain_linear=1.0, gain_db=0.0)],
+            meta={"planned_points": 72},
+        )
+
+        handler.handle(SweepFailed(error_code="SWEEP_RUNTIME", message="read timeout", result=partial))
+        self.assertEqual(len(handler.latest_result.points), 1)
+        self.assertEqual(vm.point_count_text.get(), "1 / 72 points")
+        self.assertEqual(vm.run_state_text.get(), "Failed")
+        self.assertFalse(hasattr(window, "btn_start"))
+
+        handler.handle(SweepStopped(result=partial))
+        self.assertEqual(vm.run_state_text.get(), "Stopped")
+        self.assertEqual(vm.progress_text.get(), "1 / 72")
+
+    def test_worker_finished_records_honest_live_shutdown_boundary(self) -> None:
+        vm = ReceiptViewModel()
+        window = FakeWindow()
+        handler = UiEventHandler(window=window, vm=vm)
+        result = SweepResult(points=[SweepPoint(freq_hz=1.0, gain_linear=1.0, gain_db=0.0)])
+        handler.handle(SweepWorkerFinished(result=result))
+
+        self.assertIn("not independently verified", vm.validation_receipt_text.get())
+        self.assertIn("output-off requested", vm.event_history_text.get())
+
+    def test_auto_saved_event_renders_artifact_receipt(self) -> None:
+        vm = ReceiptViewModel()
+        vm.data_source_text.set("Fixture replay · demo.mat")
+        vm.fixture_badge_text.set("No hardware - simulated fixture")
+        handler = UiEventHandler(window=object(), vm=vm)
+        settings = DefaultSettingsFactory().create()
+        artifacts = SaveArtifacts(
+            mat_path=Path("/tmp/out/measurement.mat"),
+            csv_path=Path("/tmp/out/measurement.csv"),
+            txt_path=Path("/tmp/out/measurement.txt"),
+            gain_plot_path=Path("/tmp/out/measurement_gain.png"),
+            db_plot_path=None,
+        )
+        result = SweepResult(points=[SweepPoint(freq_hz=1.0, gain_linear=1.0, gain_db=0.0)])
+
+        handler.handle(SweepAutoSaved(artifacts=artifacts, result=result, settings=settings))
+
+        self.assertIn("measurement.csv", vm.export_receipt_text.get())
+        self.assertIn("No hardware simulated fixture", vm.export_receipt_text.get())
+
+    def test_history_keeps_last_100_timestamped_events(self) -> None:
+        vm = ReceiptViewModel()
+        handler = UiEventHandler(window=object(), vm=vm)
+        for index in range(105):
+            handler.record_event(f"event-{index}")
+
+        history = vm.event_history_text.get().splitlines()
+        self.assertEqual(len(history), 100)
+        self.assertNotIn("event-0", vm.event_history_text.get())
+        self.assertIn("event-104", vm.event_history_text.get())
+        self.assertRegex(history[0], r"^\d{2}:\d{2}:\d{2}  Info:")
 
 
 if __name__ == "__main__":

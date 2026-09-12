@@ -8,6 +8,7 @@ ROOT = Path(SPECPATH).resolve().parents[1]
 
 datas = [
     (str(ROOT / "demo_data"), "demo_data"),
+    (str(ROOT / "src" / "app" / "runtime" / "demo_data"), "app/runtime/demo_data"),
     (str(ROOT / "docs" / "images" / "auto-load-off-test-point-replay-demo.png"), "docs/images"),
 ]
 

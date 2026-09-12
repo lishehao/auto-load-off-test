@@ -11,7 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from app.application.dto import SaveTarget
 from app.domain.data_validation import DataValidationError, normalize_measurement_arrays
-from app.domain.models import SweepPoint, SweepResult
+from app.domain.data_validation import normalize_reference_curve
+from app.domain.models import ReferenceCurve, SweepPoint, SweepResult
 from app.infrastructure.persistence.measurement_exporter import MeasurementExporter
 from app.infrastructure.persistence.measurement_loader import MeasurementLoader
 from app.infrastructure.persistence.reference_repo_mat import MatReferenceRepository
@@ -19,6 +20,31 @@ from app.infrastructure.persistence.settings_defaults import DefaultSettingsFact
 
 
 class DataValidationTests(unittest.TestCase):
+    def test_db_to_linear_rejects_overflow_and_underflow(self) -> None:
+        for gain_db in ([10_000.0], [-10_000.0]):
+            with self.subTest(gain_db=gain_db):
+                with self.assertRaisesRegex(DataValidationError, "finite and strictly positive representable"):
+                    normalize_measurement_arrays(
+                        freq_hz=[1_000.0], gain_linear=None, gain_db=gain_db, phase_deg=None
+                    )
+
+    def test_both_gain_columns_allow_csv_rounding_but_reject_contradiction(self) -> None:
+        arrays = normalize_measurement_arrays(
+            freq_hz=[1_000.0], gain_linear=[2.0], gain_db=[6.0206], phase_deg=None
+        )
+        self.assertEqual(arrays.gain_linear[0], 2.0)
+
+        with self.assertRaisesRegex(DataValidationError, "inconsistent"):
+            normalize_measurement_arrays(
+                freq_hz=[1_000.0], gain_linear=[2.0], gain_db=[6.1], phase_deg=None
+            )
+
+    def test_reference_db_gain_must_be_representable(self) -> None:
+        with self.assertRaisesRegex(DataValidationError, "finite and strictly positive representable"):
+            normalize_reference_curve(
+                ReferenceCurve(freq_hz=[1_000.0], gain_db=[-10_000.0], phase_deg=None)
+            )
+
     def test_measurement_frequency_must_be_positive_and_strictly_increasing(self) -> None:
         for freq, message in (
             ([0.0, 1_000.0], "must be positive"),

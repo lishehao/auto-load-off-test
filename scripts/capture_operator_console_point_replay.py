@@ -1,30 +1,26 @@
 from __future__ import annotations
 
+import argparse
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Callable
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-OUT_DIR = ROOT / "docs" / "images"
+DEFAULT_OUTPUT_DIR = ROOT / "docs" / "images" / "desktop-workflow-replay"
 FIXTURE = ROOT / "demo_data" / "hyperframe_simulated_fixture.mat"
 REFERENCE = ROOT / "demo_data" / "hyperframe_reference_fixture.mat"
-POSTER = OUT_DIR / "auto-load-off-test-point-replay-demo.png"
-VIDEO = OUT_DIR / "auto-load-off-test-point-replay-demo.mp4"
 FRAME_RATE = 12
 DEMO_SIZE = "1440x810+20+40"
 
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from app.application.dto import SaveTarget  # noqa: E402
-from app.application.services.export_receipts import build_export_receipt  # noqa: E402
 from app.bootstrap import build_desktop_app  # noqa: E402
-from app.demo.hyperframe_fixture import DEMO_LABEL, build_fixture_settings  # noqa: E402
-from app.domain.models import SweepResult  # noqa: E402
+from app.demo.hyperframe_fixture import build_fixture_settings  # noqa: E402
 from app.presentation.tk.mapper import settings_to_vm  # noqa: E402
 from app.runtime.paths import AppPaths  # noqa: E402
 
@@ -37,84 +33,121 @@ from capture_operator_console_demo import (  # noqa: E402
 )
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Capture a real Tk controller-driven fixture replay")
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_OUTPUT_DIR,
+        help="directory for the new desktop-workflow-replay MP4/poster",
+    )
+    args = parser.parse_args(argv)
     _require_tools()
     _require_file(FIXTURE)
     _require_file(REFERENCE)
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir = args.output_dir.expanduser().resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    poster = output_dir / "auto-load-off-test-desktop-workflow-replay.png"
+    video = output_dir / "auto-load-off-test-desktop-workflow-replay.mp4"
 
-    app = build_desktop_app(paths=AppPaths.from_root(ROOT))
-    fixture_settings = build_fixture_settings()
-    fixture_settings.freq_unit = "KHz"
-    settings_to_vm(fixture_settings, app.window.vm)
-    app.window.geometry(DEMO_SIZE)
-    app.window.update()
-    _raise_window(app.window)
-    window_id = _find_window_id(app.window.title())
-    print(f"window_id: {window_id}")
+    with tempfile.TemporaryDirectory(prefix="auto-load-off-test-runtime-") as runtime_dir:
+        runtime_root = Path(runtime_dir)
+        demo_dir = runtime_root / "demo_data"
+        demo_dir.mkdir()
+        shutil.copy2(FIXTURE, demo_dir / FIXTURE.name)
+        shutil.copy2(REFERENCE, demo_dir / REFERENCE.name)
+        app = build_desktop_app(paths=AppPaths.from_root(runtime_root))
+        app.controller.initialize()
+        fixture_settings = build_fixture_settings()
+        fixture_settings.freq_unit = "KHz"
+        settings_to_vm(fixture_settings, app.window.vm)
+        app.window.geometry(DEMO_SIZE)
+        app.window.update()
+        _raise_window(app.window)
+        window_id = _find_window_id(app.window.title())
+        print(f"window_id: {window_id}")
+        with tempfile.TemporaryDirectory(prefix="auto-load-off-test-frames-") as frame_dir:
+            session = ControllerReplayCaptureSession(
+                app=app,
+                frame_dir=Path(frame_dir),
+                window_id=window_id,
+                poster=poster,
+                video=video,
+            )
+            session.run()
 
-    loaded = app.controller.load_measurement_use_case.execute(str(FIXTURE))
-    app.controller.load_reference_from_path(REFERENCE)
-    with tempfile.TemporaryDirectory(prefix="auto-load-off-test-point-replay-") as td:
-        session = PointReplayCaptureSession(
-            app=app,
-            frame_dir=Path(td),
-            window_id=window_id,
-            full_result=loaded.result,
-        )
-        session.run()
 
-
-class PointReplayCaptureSession:
-    def __init__(self, *, app, frame_dir: Path, window_id: int, full_result: SweepResult) -> None:
+class ControllerReplayCaptureSession:
+    def __init__(self, *, app, frame_dir: Path, window_id: int, poster: Path, video: Path) -> None:
         self.app = app
         self.window = app.window
         self.vm = app.window.vm
         self.frame_dir = frame_dir
         self.window_id = window_id
-        self.full_result = full_result
-        self.total_points = len(full_result.points)
+        self.poster = poster
+        self.video = video
         self.frame_index = 1
-        self.replay_index = 0
+        self._started_replay = False
+        self._final_frames = 0
 
     def run(self) -> None:
-        self.window.run_panel.btn_load_demo_fixture.configure(command=self._start_replay)
-        self.vm.magnitude_phase_mode.set("magnitude_phase")
-        self.window.plot_widget.set_mode(self.vm.figure_mode.get())
-        self.app.controller.on_mag_phase_change()
         self._set_initial_state()
-        self.window.after(1200, self._capture_start)
+        self.window.after(1000, self._capture_initial)
         self.window.mainloop()
 
-    def _capture_start(self) -> None:
+    def _set_initial_state(self) -> None:
+        # This is an honest source receipt before data is loaded, not a fabricated
+        # measurement. The controller still owns every data transition below.
+        self.vm.source_mode.set("fixture")
+        self.vm.data_source_text.set("Fixture replay ready · hyperframe_simulated_fixture.mat")
+        self.vm.fixture_badge_text.set("No hardware - simulated fixture")
+        self.vm.validation_receipt_text.set("Ready for simulated fixture replay; not live hardware validation")
+        self.vm.status_text.set("Ready to load simulated fixture (no hardware)")
+        self.vm.run_state_text.set("Ready")
+        self.vm.point_count_text.set("0 points")
+        self.vm.progress_text.set("0 / 0")
+        self.vm.latest_frequency_text.set("-")
+        self.vm.elapsed_text.set("00:00")
+        self.window.set_connection_idle()
+
+    def _capture_initial(self) -> None:
         _raise_window(self.window)
-        self.window.after(500, lambda: self._capture_frames(12, self._press_demo_button))
+        self._capture_frames(12, self._press_load_demo)
 
-    def _press_demo_button(self) -> None:
-        self.window.run_panel.btn_load_demo_fixture.configure(relief="sunken")
-        self._capture_frames(4, self._start_replay)
+    def _press_load_demo(self) -> None:
+        self.window.run_panel.btn_load_demo_fixture.invoke()
+        self._wait_for_loaded_fixture()
 
-    def _start_replay(self) -> None:
-        self.window.run_panel.btn_load_demo_fixture.configure(relief="flat")
-        self.replay_index = 0
-        self.app.controller._ui_handler.set_result(SweepResult(), refresh_plot=False)
-        self.app.controller._ui_handler.set_fixture_source(label=DEMO_LABEL, path_name=FIXTURE.name)
-        self._set_replay_state(0)
-        self._capture_replay_step()
-
-    def _capture_replay_step(self) -> None:
-        if self.replay_index >= self.total_points:
-            self._record_demo_export()
-            self._capture_frames(24, self._finish)
+    def _wait_for_loaded_fixture(self) -> None:
+        state = self.vm.operation_mode.get()
+        replay_state = self.window.run_panel.btn_replay_fixture.cget("state")
+        if state in {"loading", "analyzing", "exporting"} or replay_state == "disabled":
+            self.window.after(100, self._wait_for_loaded_fixture)
             return
+        self._capture_frames(8, self._press_replay)
 
-        self.replay_index += 1
-        self._set_replay_state(self.replay_index)
+    def _press_replay(self) -> None:
+        self.window.run_panel.btn_replay_fixture.invoke()
+        self._started_replay = True
+        self.window.after(100, self._capture_replay_frame)
+
+    def _capture_replay_frame(self) -> None:
         _capture_window(self.window_id, self.frame_dir / f"frame_{self.frame_index:04d}.png")
         self.frame_index += 1
-        self.window.after(int(1000 / FRAME_RATE), self._capture_replay_step)
+        if self._replay_finished():
+            self._final_frames += 1
+            if self._final_frames >= 24:
+                self._finish()
+            else:
+                self.window.after(int(1000 / FRAME_RATE), self._capture_replay_frame)
+            return
+        self.window.after(int(1000 / FRAME_RATE), self._capture_replay_frame)
 
-    def _capture_frames(self, remaining: int, done: Callable[[], None]) -> None:
+    def _replay_finished(self) -> bool:
+        progress = self.vm.progress_text.get()
+        return self._started_replay and self.vm.operation_mode.get() == "idle" and progress.startswith("72 / 72")
+
+    def _capture_frames(self, remaining: int, done) -> None:
         if remaining <= 0:
             done()
             return
@@ -122,74 +155,24 @@ class PointReplayCaptureSession:
         self.frame_index += 1
         self.window.after(int(1000 / FRAME_RATE), lambda: self._capture_frames(remaining - 1, done))
 
-    def _set_initial_state(self) -> None:
-        self.app.controller._ui_handler.set_result(SweepResult(), refresh_plot=False)
-        self.vm.source_mode.set("fixture")
-        self.vm.figure_mode.set("gain_db")
-        self.vm.magnitude_phase_mode.set("magnitude_phase")
-        self.vm.plot_scale.set("log")
-        self.vm.data_source_text.set(f"Fixture replay ready · {FIXTURE.name}")
-        self.vm.fixture_badge_text.set("No hardware - simulated fixture")
-        self.vm.validation_receipt_text.set("Ready for simulated point replay; not live hardware validation")
-        self.vm.export_receipt_text.set("No export yet")
-        self.vm.run_state_text.set("Ready to replay")
-        self.vm.progress_text.set(f"0 / {self.total_points}")
-        self.vm.point_count_text.set(f"0 / {self.total_points} points")
-        self.vm.latest_frequency_text.set("-")
-        self.vm.status_text.set("Ready to replay simulated fixture (no hardware)")
-        self.window.set_connection_idle()
-        self.window.plot_widget.set_mode("gain_db")
-        self.app.controller._ui_handler.refresh_plot()
-
-    def _set_replay_state(self, point_count: int) -> None:
-        partial = SweepResult(
-            points=list(self.full_result.points[:point_count]),
-            meta=dict(self.full_result.meta),
-        )
-        self.app.controller._ui_handler.set_result(partial, refresh_plot=True)
-        self.vm.export_receipt_text.set("Replaying deterministic fixture points; no hardware connected")
-        self.vm.run_state_text.set("Replaying fixture" if point_count < self.total_points else "Fixture ready")
-        self.vm.progress_text.set(f"{point_count} / {self.total_points}")
-        self.vm.point_count_text.set(f"{point_count} / {self.total_points} points")
-        if point_count:
-            latest = self.full_result.points[point_count - 1]
-            self.vm.latest_frequency_text.set(_format_frequency(latest.freq_hz))
-        else:
-            self.vm.latest_frequency_text.set("-")
-        self.vm.status_text.set(f"Fixture replay point {point_count}/{self.total_points} (no hardware)")
-
-    def _record_demo_export(self) -> None:
-        settings = build_fixture_settings()
-        artifacts = self.app.controller.save_measurement_use_case.execute(
-            result=self.app.controller._ui_handler.latest_result,
-            settings=settings,
-            target=SaveTarget(base_path=self.frame_dir / "demo_capture_export", figures={}),
-        )
-        receipt = build_export_receipt(
-            artifacts=artifacts,
-            settings=settings,
-            result=self.app.controller._ui_handler.latest_result,
-            source_text=self.vm.data_source_text.get(),
-            fixture_badge_text=self.vm.fixture_badge_text.get(),
-        )
-        artifact_names = " · ".join(path.name for path in receipt.artifacts)
-        self.vm.export_receipt_text.set(f"Export verified · {artifact_names}\nTemporary capture output · no hardware")
-        self.vm.status_text.set("Fixture replay complete; export verified (no hardware)")
-
     def _finish(self) -> None:
-        _capture_window(self.window_id, POSTER)
-        _write_video(self.frame_dir)
-        print(f"poster: {POSTER.relative_to(ROOT)}")
-        print(f"video: {VIDEO.relative_to(ROOT)}")
+        if self.vm.fixture_badge_text.get() != "No hardware - simulated fixture":
+            raise RuntimeError("Capture lost the no-hardware simulated-fixture label")
+        if "72" not in self.vm.point_count_text.get():
+            raise RuntimeError(f"Capture did not finish 72-point replay: {self.vm.point_count_text.get()}")
+        _capture_window(self.window_id, self.poster)
+        _write_video(self.frame_dir, self.video)
+        print(f"poster: {self.poster}")
+        print(f"video: {self.video}")
         print(f"point_count: {self.vm.point_count_text.get()}")
         print(f"source: {self.vm.data_source_text.get()}")
         print(f"badge: {self.vm.fixture_badge_text.get()}")
         print(f"validation: {self.vm.validation_receipt_text.get()}")
         print(f"window: {self.window.winfo_geometry()}")
-        self.window.destroy()
+        self.app.controller.on_close()
 
 
-def _write_video(frame_dir: Path) -> None:
+def _write_video(frame_dir: Path, output_path: Path) -> None:
     subprocess.run(
         [
             _ffmpeg_executable(),
@@ -204,7 +187,7 @@ def _write_video(frame_dir: Path) -> None:
             "libx264",
             "-pix_fmt",
             "yuv420p",
-            str(VIDEO),
+            str(output_path),
         ],
         check=True,
         stdout=subprocess.DEVNULL,
@@ -215,14 +198,6 @@ def _write_video(frame_dir: Path) -> None:
 def _require_file(path: Path) -> None:
     if not path.exists():
         raise RuntimeError(f"Required file not found: {path}")
-
-
-def _format_frequency(freq_hz: float) -> str:
-    if abs(freq_hz) >= 1_000_000:
-        return f"{freq_hz / 1_000_000:.3g} MHz"
-    if abs(freq_hz) >= 1_000:
-        return f"{freq_hz / 1_000:.3g} kHz"
-    return f"{freq_hz:.3g} Hz"
 
 
 if __name__ == "__main__":

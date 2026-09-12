@@ -9,9 +9,15 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from app.demo.package_smoke import RECEIPT_NAME, VALIDATION_BOUNDARY, run_package_smoke
+from app.runtime.resources import bundled_resource_root
 
 
 class PackageSmokeTests(unittest.TestCase):
+    def test_bundled_resource_root_resolves_repository_fixture(self) -> None:
+        root = bundled_resource_root()
+        self.assertTrue((root / "demo_data" / "hyperframe_simulated_fixture.mat").is_file())
+        self.assertTrue((root / "demo_data" / "hyperframe_reference_fixture.mat").is_file())
+
     def test_package_smoke_exports_and_reloads_fixture_without_hardware(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as td:

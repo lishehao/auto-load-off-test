@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
+from copy import deepcopy
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.application.dto import SaveTarget, StartSweepCommand
 from app.application.errors import describe_exception
-from app.application.events import EventEmitter, SweepFailed, SweepWarning
+from app.application.events import EventEmitter, SweepAutoSaved, SweepFailed, SweepWarning, SweepWorkerFinished
 from app.application.ports.instruments import InstrumentPorts, InstrumentPortsFactory
 from app.application.use_cases.save_measurement import SaveMeasurementUseCase
 from app.application.use_cases.start_sweep import StartSweepUseCase
 from app.application.use_cases.stop_sweep import StopSweepUseCase
-from app.domain.models import AppSettings
+from app.domain.models import AppSettings, SweepResult
+from app.domain.validators import validate_settings
 
 
 class SweepTaskRunner:
@@ -32,6 +35,7 @@ class SweepTaskRunner:
 
         self._ports: InstrumentPorts | None = None
         self._ports_lock = threading.Lock()
+        self._cleanup_lock = threading.Lock()
         self._sweep_thread: threading.Thread | None = None
         self._stop_use_case: StopSweepUseCase | None = None
         self._active_awg_channel: int | None = None
@@ -45,19 +49,29 @@ class SweepTaskRunner:
         settings: AppSettings,
         calibration_enabled: bool,
         reference_interpolator: object | None,
+        cancellation_event: threading.Event | None = None,
     ) -> None:
         if self.is_running():
             return
 
-        awg_channel = settings.setup.channels.awg_ch
+        self._stop_use_case = None
+        self._sweep_thread = None
+        # Validate and freeze the caller's settings before constructing any
+        # instrument resources or starting the worker thread.
+        frozen_settings = deepcopy(settings)
+        validate_settings(frozen_settings)
+
+        awg_channel = frozen_settings.setup.channels.awg_ch
+        stop_event = cancellation_event if cancellation_event is not None else threading.Event()
+        self._stop_use_case = StopSweepUseCase(stop_event=stop_event)
         ports: InstrumentPorts | None = None
         try:
-            ports = self._ports_factory(settings.setup)
-            stop_event = threading.Event()
-            self._stop_use_case = StopSweepUseCase(stop_event=stop_event)
+            if stop_event.is_set():
+                raise InterruptedError("Start cancelled before instrument connection")
+            ports = self._ports_factory(frozen_settings.setup)
 
             cmd = StartSweepCommand(
-                settings=settings,
+                settings=frozen_settings,
                 calibration_enabled=calibration_enabled,
                 reference_interpolator=reference_interpolator,
             )
@@ -104,14 +118,32 @@ class SweepTaskRunner:
         self._close_ports()
 
     def _run_sweep(self, start_use_case: StartSweepUseCase, cmd: StartSweepCommand) -> None:
+        result: SweepResult
         try:
             result = start_use_case.run(cmd, self._emitter)
         except Exception as exc:  # noqa: BLE001
-            self._emitter.emit(SweepFailed(error_code="SWEEP_THREAD", message=describe_exception(exc)))
-        else:
-            self._auto_save_if_requested(result=result, cmd=cmd)
+            message = describe_exception(exc)
+            result = SweepResult(
+                meta={
+                    "run_status": "failed",
+                    "termination_reason": "worker_error",
+                    "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    "planned_points": 0,
+                    "completed_points": 0,
+                    "error_code": "SWEEP_THREAD",
+                    "error_message": message,
+                    "error_stage": "worker",
+                }
+            )
+            self._emitter.emit(
+                SweepFailed(error_code="SWEEP_THREAD", message=message, result=result.snapshot())
+            )
         finally:
+            # Instrument shutdown must happen before persistence, even when
+            # saving fails or the sweep ended with a partial result.
             self._close_ports()
+            self._auto_save_if_requested(result=result, cmd=cmd)
+            self._emitter.emit(SweepWorkerFinished(result=result.snapshot()))
 
     def _auto_save_if_requested(self, *, result, cmd: StartSweepCommand) -> None:
         if result.is_empty or not cmd.settings.auto_save_data:
@@ -123,21 +155,31 @@ class SweepTaskRunner:
             figures={},
         )
         try:
-            self._save_measurement_use_case.execute(result=result, settings=cmd.settings, target=target)
+            artifacts = self._save_measurement_use_case.execute(
+                result=result, settings=cmd.settings, target=target
+            )
+            self._emitter.emit(
+                SweepAutoSaved(
+                    artifacts=artifacts,
+                    result=result.snapshot(),
+                    settings=cmd.settings,
+                )
+            )
         except Exception as exc:  # noqa: BLE001
             self._emit_warning(code="AUTO_SAVE_FAILED", message=describe_exception(exc))
 
     def _close_ports(self) -> None:
-        with self._ports_lock:
-            ports = self._ports
-            awg_channel = self._active_awg_channel
-            self._ports = None
-            self._active_awg_channel = None
+        # A timeout cleanup may already own the ports. The worker must wait
+        # for that cleanup to finish before publishing its save/finished events.
+        with self._cleanup_lock:
+            with self._ports_lock:
+                ports = self._ports
+                awg_channel = self._active_awg_channel
+                self._ports = None
+                self._active_awg_channel = None
 
-        if ports is None:
-            return
-
-        self._close_port_set(ports=ports, awg_channel=awg_channel)
+            if ports is not None:
+                self._close_port_set(ports=ports, awg_channel=awg_channel)
 
     def _close_port_set(self, *, ports: InstrumentPorts, awg_channel: int | None) -> None:
         if awg_channel is not None:

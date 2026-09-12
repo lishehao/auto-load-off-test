@@ -17,6 +17,9 @@ flowchart LR
 
 - `app/bootstrap.py`
   - Desktop composition root. Wires repositories, use cases, scanner, instrument factories, runtime paths, and the Tk controller.
+- `app/offline.py`
+  - Headless composition root for file analysis. Snapshots inputs and stages a complete report bundle without
+    importing the desktop bootstrap, Tkinter, PyVISA, or production adapters.
 - `app/presentation/tk`
   - Tk widgets, variable bindings, dialogs, chart rendering.
   - Consumes application events and dispatches user intents.
@@ -67,8 +70,9 @@ Forbidden:
   combinations fail before the legacy vendor layer is entered.
 - Address resolution remains isolated in infrastructure and is injected into the controller/discovery service.
 - AWG and OSC commands are executed through `AwgPort` and `OscPort` adapters.
-- Connection scanning is provided by `PyVisaResourceScanner`, `ConnectionMonitor`, and the
-  discovery/test-connect service. Test-connect uses short `*IDN?` probes and does not start a sweep.
+- Explicit scanning is provided by `PyVisaResourceScanner` and the discovery/test-connect service. The desktop
+  no longer starts a periodic `ConnectionMonitor`: resource visibility is not a connection test. Test-connect
+  uses short `*IDN?` probes and does not start a sweep.
 - `src/equips.py` is intentionally treated as a vendor compatibility layer. It contains legacy SCPI/serial behavior that should not be casually refactored without physical instrument verification.
 
 ## Persistence
@@ -78,10 +82,52 @@ Forbidden:
 - Reference files: MAT
 
 Runtime locations are centralized through `AppPaths` in `app/runtime/paths.py`.
+They default to OS-specific per-user storage; `AUTO_LOAD_OFF_TEST_ROOT` is an explicit override. Read-only demo
+resources use a separate resolver covering source, installed package, and PyInstaller layouts.
+The offline command instead takes explicit input/reference and output paths; it does not require app runtime settings.
 
 Measurement and reference loaders normalize data through `domain/data_validation.py`. Frequencies must be finite,
 positive, unique, and strictly increasing; gain arrays must be finite and aligned; phase may be absent but cannot
 contain infinity. Export validates the `SweepResult` again before writing.
+
+## Offline Analysis Flow
+
+1. `main.py analyze` parses explicit dataset, correction, coverage, and output choices.
+2. `app/offline.py` copies and hashes input files in a private staging directory.
+3. Existing loaders normalize the snapshots; `AnalyzeMeasurementUseCase` applies domain validation and optional
+   offline reference interpolation. Unknown acquisition settings remain unknown.
+4. `analysis_bundle.py` writes MAT/CSV/TXT with result metadata, an Agg-rendered plot, a static HTML report, and a
+   versioned manifest. The manifest hashes inputs and generated artifacts; it does not hash itself.
+5. Only a complete staged bundle is moved to a new destination. An exclusive local lock coordinates competing runs;
+   existing directories are not overwritten. Interrupted processes can leave a stale lock for manual inspection.
+
+Offline PCHIP interpolation is separate from the legacy sweep interpolator. Both reuse reference/measurement
+validation, and zero/non-finite reference responses are rejected. Processing markers survive MAT/CSV export/reload;
+known corrected data is protected against accidental double correction. See [offline_analysis.md](offline_analysis.md)
+for numerical assumptions, provenance limits, and failure behavior.
+
+## Desktop Operation Ownership
+
+`TkController` owns one operation state: idle, loading, replay, analyzing, exporting, discovery, live, or stopping.
+Non-Tk work runs in background jobs that return values/errors through the event queue. Widget access stays on
+the Tk thread; plot controls remain usable while conflicting mutations are disabled.
+
+`MeasurementWorkspace` owns uniquely named input snapshots. The controller keeps the original loaded document,
+applied analysis options/reference snapshot, and displayed result separate. Apply cannot accidentally compound
+correction, and Export cannot silently use pending selector changes or a different same-name file. Numeric UI
+exports stage first and publish exclusively with exception rollback.
+
+`FixtureReplay` is scheduler-driven file playback. Tokens invalidate stale callbacks after Stop/restart, and each
+update is an independent partial result. It uses the normal plot/state path without constructing instrument ports.
+
+Hardware startup receives a cancellation event created before scheduling. Per-point validation rejects invalid
+or non-increasing measurements before append. Terminal events carry partial snapshots and termination metadata.
+A separate cleanup lock serializes timeout cleanup and worker cleanup, so auto-save cannot race ahead of pending
+output-off attempts. `SweepWorkerFinished` follows cleanup and save. Closing waits for the shutdown thread and
+drains trailing warnings before closing the local rotating event log and window.
+
+These are software ordering guarantees. Driver calls can still block, and no receipt proves electrical safety
+or successful physical output-off.
 
 ## Hardware-Free Evidence Flow
 

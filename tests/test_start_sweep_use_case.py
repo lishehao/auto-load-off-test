@@ -4,14 +4,23 @@ import sys
 from pathlib import Path
 import threading
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from app.application.dto import StartSweepCommand
-from app.application.events import SweepCompleted, SweepFailed, SweepProgress, SweepStarted, SweepStopped
+from app.application.events import (
+    SweepCompleted,
+    SweepDataUpdated,
+    SweepFailed,
+    SweepProgress,
+    SweepStarted,
+    SweepStopped,
+)
 from app.application.use_cases.start_sweep import StartSweepUseCase
+from app.domain.data_validation import validate_sweep_result
 from app.domain.enums import (
     ConnectionMode,
     CorrectionMode,
@@ -28,6 +37,7 @@ from app.domain.models import (
     InstrumentSetup,
     OscSettings,
     RunMode,
+    SweepPoint,
     SweepSpec,
 )
 
@@ -133,6 +143,24 @@ class Recorder:
 
 
 class StartSweepUseCaseTests(unittest.TestCase):
+    def test_invalid_or_nonincreasing_point_preserves_exportable_partial_result(self):
+        for bad_point in (SweepPoint(2000.0, float("nan"), float("nan")),
+                          SweepPoint(1000.0, 1.0, 0.0), SweepPoint(900.0, 1.0, 0.0)):
+            with self.subTest(point=bad_point):
+                awg = MockAwg()
+                points = iter([SweepPoint(1000.0, 1.0, 0.0), bad_point])
+                measurement = SimpleNamespace(measure=lambda **_: next(points))
+                use_case = StartSweepUseCase(awg=awg, osc=MockOsc(awg), stop_event=threading.Event(),
+                                             measurement_service=measurement)
+                recorder = Recorder()
+                result = use_case.run(StartSweepCommand(settings=self._build_settings()), recorder)
+                self.assertEqual(len(result.points), 1)
+                self.assertEqual(result.meta["run_status"], "failed")
+                self.assertEqual(result.meta["error_stage"], "point_validation")
+                self.assertTrue(any(isinstance(e, SweepFailed) for e in recorder.events))
+                self.assertFalse(any(isinstance(e, SweepCompleted) for e in recorder.events))
+                validate_sweep_result(result)
+
     def _build_settings(self) -> AppSettings:
         return AppSettings(
             schema_version=1,
@@ -245,6 +273,110 @@ class StartSweepUseCaseTests(unittest.TestCase):
         self.assertTrue(result.is_empty)
         self.assertEqual(failures[0].error_code, "SWEEP_RUNTIME")
         self.assertIn("RuntimeError", failures[0].message)
+
+    def test_second_point_failure_preserves_first_point_and_failure_metadata(self) -> None:
+        class Planner:
+            def plan(self, settings):
+                _ = settings
+                return SimpleNamespace(freq_points=[1000.0, 2000.0, 3000.0], total_points=3)
+
+        class Acquirer:
+            def __init__(self):
+                self.calls = 0
+
+            def acquire(self, *, target_freq_hz, settings):
+                _ = (target_freq_hz, settings)
+                self.calls += 1
+                if self.calls == 2:
+                    raise TimeoutError("second point timeout")
+                return SimpleNamespace(warnings=[])
+
+        class Measurement:
+            def measure(self, *, settings, acquired):
+                _ = (settings, acquired)
+                return SweepPoint(freq_hz=1000.0, gain_linear=1.0, gain_db=0.0)
+
+        class Calibration:
+            def apply(self, *, point, cmd):
+                _ = cmd
+                return point
+
+        class Configurator:
+            def configure(self, settings):
+                _ = settings
+
+        recorder = Recorder()
+        result = StartSweepUseCase(
+            awg=MockAwg(),
+            osc=MockOsc(MockAwg()),
+            stop_event=threading.Event(),
+            planner=Planner(),
+            configurator=Configurator(),
+            acquirer=Acquirer(),
+            measurement_service=Measurement(),
+            calibration_applier=Calibration(),
+        ).run(StartSweepCommand(settings=self._build_settings()), recorder)
+
+        self.assertEqual(len(result.points), 1)
+        self.assertEqual(result.meta["run_status"], "failed")
+        self.assertEqual(result.meta["completed_points"], 1)
+        self.assertEqual(result.meta["error_stage"], "acquire")
+        self.assertEqual(result.meta["error_point_index"], 2)
+        failure = next(event for event in recorder.events if isinstance(event, SweepFailed))
+        self.assertIsNotNone(failure.result)
+        self.assertEqual(len(failure.result.points), 1)
+
+    def test_published_partial_results_are_independent_snapshots(self) -> None:
+        recorder = Recorder()
+        result = StartSweepUseCase(awg=MockAwg(), osc=MockOsc(MockAwg()), stop_event=threading.Event()).run(
+            StartSweepCommand(settings=self._build_settings()), recorder
+        )
+
+        updates = [event for event in recorder.events if isinstance(event, SweepDataUpdated)]
+        self.assertEqual([len(event.partial_result.points) for event in updates], [1, 2, 3])
+        self.assertEqual([event.partial_result.meta["completed_points"] for event in updates], [1, 2, 3])
+        result.meta["completed_points"] = 99
+        self.assertEqual(updates[-1].partial_result.meta["completed_points"], 3)
+
+    def test_stop_after_point_published_retains_that_point(self) -> None:
+        stop_event = threading.Event()
+
+        class StopAfterData(Recorder):
+            def emit(self, event):
+                super().emit(event)
+                if isinstance(event, SweepDataUpdated):
+                    stop_event.set()
+
+        recorder = StopAfterData()
+        result = StartSweepUseCase(awg=MockAwg(), osc=MockOsc(MockAwg()), stop_event=stop_event).run(
+            StartSweepCommand(settings=self._build_settings()), recorder
+        )
+
+        self.assertEqual(len(result.points), 1)
+        self.assertEqual(result.meta["run_status"], "stopped")
+        self.assertEqual(result.meta["completed_points"], 1)
+        stopped = next(event for event in recorder.events if isinstance(event, SweepStopped))
+        self.assertEqual(len(stopped.result.points), 1)
+
+    def test_stop_before_configuration_does_not_configure(self) -> None:
+        stop_event = threading.Event()
+        stop_event.set()
+        configured = []
+
+        class Configurator:
+            def configure(self, settings):
+                configured.append(settings)
+
+        recorder = Recorder()
+        result = StartSweepUseCase(
+            awg=MockAwg(),
+            osc=MockOsc(MockAwg()),
+            stop_event=stop_event,
+            configurator=Configurator(),
+        ).run(StartSweepCommand(settings=self._build_settings()), recorder)
+
+        self.assertEqual(configured, [])
+        self.assertEqual(result.meta["run_status"], "stopped")
 
 
 if __name__ == "__main__":

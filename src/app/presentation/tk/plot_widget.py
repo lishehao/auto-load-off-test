@@ -34,10 +34,11 @@ class PlotWidget:
         self._build_header()
         self._build_plots()
 
-    def bind_controls(self, *, on_figure_change, on_mag_phase_change, on_plot_scale_change) -> None:
+    def bind_controls(self, *, on_figure_change, on_mag_phase_change, on_plot_scale_change, on_plot_reset=None) -> None:
         self.cmb_figure.bind("<<ComboboxSelected>>", lambda _e: on_figure_change())
         self.cmb_mag_phase.bind("<<ComboboxSelected>>", lambda _e: on_mag_phase_change())
         self.cmb_plot_scale.bind("<<ComboboxSelected>>", lambda _e: on_plot_scale_change())
+        self.btn_fit_plot.configure(command=on_plot_reset or self.reset_view)
 
     def _build_header(self) -> None:
         header = tk.Frame(self.frame, bg=CARD_BG, highlightbackground="#d9e0e8", highlightthickness=1)
@@ -45,24 +46,26 @@ class PlotWidget:
         header.grid_columnconfigure(0, weight=1)
 
         left = tk.Frame(header, bg=CARD_BG)
-        left.grid(row=0, column=0, sticky="ew", padx=12, pady=10)
+        left.grid(row=0, column=0, sticky="ew", padx=12, pady=(9, 2))
         left.grid_columnconfigure(0, weight=1)
 
         tk.Label(
             left,
-            text="Measurement Results Workbench",
+            text="Frequency Response",
             bg=CARD_BG,
             fg=TEXT,
             font=("TkDefaultFont", 15, "bold"),
             anchor="w",
         ).grid(row=0, column=0, sticky="ew")
-        tk.Label(
+        self._source_label = tk.Label(
             left,
             textvariable=self._vm.data_source_text,
             bg=CARD_BG,
             fg=MUTED,
             anchor="w",
-        ).grid(row=1, column=0, sticky="ew", pady=(3, 0))
+        )
+        self._source_label.grid(row=1, column=0, sticky="ew", pady=(2, 0))
+        header.bind("<Configure>", self._sync_source_wrap)
         self._fixture_badge = tk.Label(
             left,
             textvariable=self._vm.fixture_badge_text,
@@ -76,10 +79,11 @@ class PlotWidget:
         self._sync_fixture_badge()
 
         controls = tk.Frame(header, bg=CARD_BG)
-        controls.grid(row=0, column=1, sticky="e", padx=12, pady=10)
+        controls.grid(row=1, column=0, columnspan=2, sticky="ew", padx=12, pady=(5, 9))
         controls.grid_columnconfigure(1, weight=1)
+        controls.grid_columnconfigure(3, weight=1)
 
-        tk.Label(controls, text="Plot", bg=CARD_BG, fg=MUTED).grid(row=0, column=0, sticky="e", padx=(0, 6))
+        tk.Label(controls, text="Plot", bg=CARD_BG, fg=MUTED).grid(row=0, column=0, sticky="e", padx=(0, 5))
         self.cmb_figure = ttk.Combobox(
             controls,
             textvariable=self._vm.figure_mode,
@@ -87,9 +91,9 @@ class PlotWidget:
             width=10,
             state="readonly",
         )
-        self.cmb_figure.grid(row=0, column=1, sticky="ew")
+        self.cmb_figure.grid(row=0, column=1, sticky="ew", padx=(0, 12))
 
-        tk.Label(controls, text="Display", bg=CARD_BG, fg=MUTED).grid(row=1, column=0, sticky="e", padx=(0, 6))
+        tk.Label(controls, text="Display", bg=CARD_BG, fg=MUTED).grid(row=0, column=2, sticky="e", padx=(0, 5))
         self.cmb_mag_phase = ttk.Combobox(
             controls,
             textvariable=self._vm.magnitude_phase_mode,
@@ -97,14 +101,9 @@ class PlotWidget:
             width=16,
             state="readonly",
         )
-        self.cmb_mag_phase.grid(row=1, column=1, sticky="ew", pady=(5, 0))
+        self.cmb_mag_phase.grid(row=0, column=3, sticky="ew", padx=(0, 12))
 
-        tk.Label(controls, text="X axis", bg=CARD_BG, fg=MUTED).grid(
-            row=2,
-            column=0,
-            sticky="e",
-            padx=(0, 6),
-        )
+        tk.Label(controls, text="X axis", bg=CARD_BG, fg=MUTED).grid(row=1, column=0, sticky="e", padx=(0, 5), pady=(5, 0))
         self.cmb_plot_scale = ttk.Combobox(
             controls,
             textvariable=self._vm.plot_scale,
@@ -112,7 +111,10 @@ class PlotWidget:
             width=16,
             state="readonly",
         )
-        self.cmb_plot_scale.grid(row=2, column=1, sticky="ew", pady=(5, 0))
+        self.cmb_plot_scale.grid(row=1, column=1, sticky="ew", padx=(0, 12), pady=(5, 0))
+
+        self.btn_fit_plot = ttk.Button(controls, text="Fit plot")
+        self.btn_fit_plot.grid(row=1, column=2, sticky="e", pady=(5, 0))
 
         tk.Label(
             controls,
@@ -121,7 +123,7 @@ class PlotWidget:
             fg=BLUE,
             font=("TkDefaultFont", 10, "bold"),
             anchor="e",
-        ).grid(row=3, column=0, columnspan=2, sticky="ew", pady=(7, 0))
+        ).grid(row=1, column=3, sticky="e", padx=(12, 0), pady=(5, 0))
 
     def _build_plots(self) -> None:
         plot_card = tk.Frame(self.frame, bg=CARD_BG, highlightbackground="#d9e0e8", highlightthickness=1)
@@ -132,11 +134,11 @@ class PlotWidget:
         self._fig_gain = self._figure()
         self._ax_gain = self._fig_gain.add_subplot(111)
         self._style_axes(self._ax_gain, "Gain", "Frequency")
-        (self._line_gain,) = self._ax_gain.plot([], [], "-", color=BLUE, linewidth=1.7)
+        (self._line_gain,) = self._ax_gain.plot([], [], ".-", color=BLUE, linewidth=1.7, markersize=3)
 
         self._ax_gain_right = self._ax_gain.twinx()
         self._ax_gain_right.set_ylabel("Phase (deg)")
-        (self._line_phase_gain,) = self._ax_gain_right.plot([], [], ":", color=PHASE, linewidth=1.4)
+        (self._line_phase_gain,) = self._ax_gain_right.plot([], [], ".:", color=PHASE, linewidth=1.4, markersize=3)
 
         self._canvas_gain = FigureCanvasTkAgg(self._fig_gain, master=plot_card)
         self._canvas_gain.get_tk_widget().grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
@@ -144,11 +146,11 @@ class PlotWidget:
         self._fig_db = self._figure()
         self._ax_db = self._fig_db.add_subplot(111)
         self._style_axes(self._ax_db, "Gain (dB)", "Frequency")
-        (self._line_db,) = self._ax_db.plot([], [], "-", color=BLUE, linewidth=1.7)
+        (self._line_db,) = self._ax_db.plot([], [], ".-", color=BLUE, linewidth=1.7, markersize=3)
 
         self._ax_db_right = self._ax_db.twinx()
         self._ax_db_right.set_ylabel("Phase (deg)")
-        (self._line_phase_db,) = self._ax_db_right.plot([], [], ":", color=PHASE, linewidth=1.4)
+        (self._line_phase_db,) = self._ax_db_right.plot([], [], ".:", color=PHASE, linewidth=1.4, markersize=3)
 
         self._canvas_db = FigureCanvasTkAgg(self._fig_db, master=plot_card)
 
@@ -160,8 +162,12 @@ class PlotWidget:
 
     def _figure(self) -> Figure:
         fig = Figure(figsize=(8, 5), facecolor=CARD_BG)
-        fig.subplots_adjust(left=0.08, right=0.9, top=0.94, bottom=0.12)
+        fig.subplots_adjust(left=0.14, right=0.86, top=0.94, bottom=0.12)
         return fig
+
+    def _sync_source_wrap(self, event=None) -> None:
+        width = int(getattr(event, "width", self.frame.winfo_width()) or 0)
+        self._source_label.configure(wraplength=max(260, width - 40))
 
     def _style_axes(self, ax, ylabel: str, xlabel: str) -> None:
         ax.set_facecolor("#fbfdff")
@@ -183,22 +189,34 @@ class PlotWidget:
     def set_reference_coverage(self, minimum_hz: float, maximum_hz: float) -> None:
         self._reference_coverage_hz = (min(minimum_hz, maximum_hz), max(minimum_hz, maximum_hz))
 
+    def clear_reference_coverage(self) -> None:
+        self._reference_coverage_hz = None
+        self._update_reference_spans(freq_hz=np.array([]), unit_scale=1.0)
+        self._canvas_gain.draw_idle()
+        self._canvas_db.draw_idle()
+
+    def reset_view(self) -> None:
+        """Fit the visible plot after a load, replay, or reference change."""
+        self._autoscale()
+        self._canvas_gain.draw_idle()
+        self._canvas_db.draw_idle()
+
     def update_result(self, result: SweepResult, freq_unit: str, mag_phase_mode: str) -> None:
         freq_hz = np.array([p.freq_hz for p in result.points], dtype=float)
         gain = np.array([p.gain_linear for p in result.points], dtype=float)
         gain_db = np.array([p.gain_db for p in result.points], dtype=float)
 
-        phase_x: list[float] = []
-        phase_y: list[float] = []
-        for p in result.points:
-            if p.phase_deg is not None:
-                phase_x.append(p.freq_hz)
-                phase_y.append(p.phase_deg)
+        # Keep the frequency grid intact. NaN gaps tell Matplotlib to break the
+        # line instead of joining unrelated samples across missing phase data.
+        phase_y = np.array(
+            [np.nan if p.phase_deg is None else float(p.phase_deg) for p in result.points],
+            dtype=float,
+        )
 
         scale = CvtTools.convert_general_unit(freq_unit)
         x = freq_hz / scale if len(freq_hz) else np.array([])
-        px = np.array(phase_x, dtype=float) / scale if phase_x else np.array([])
-        py = np.array(phase_y, dtype=float) if phase_y else np.array([])
+        px = x.copy()
+        py = phase_y
 
         self._line_gain.set_data(x, gain)
         self._line_db.set_data(x, gain_db)

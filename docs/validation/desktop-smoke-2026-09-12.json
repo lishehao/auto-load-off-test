@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "checks": [
+    "initial mapped window; independent demo/replay actions",
+    "normal demo load; 72 points; no hardware badge; correction not silently enabled",
+    "normal Replay/Stop retained 13/72 points; conflicting buttons disabled",
+    "restart completed 72/72; actual Matplotlib line populated",
+    "1280x760 Run/Analysis main controls within window; explicit raw/complex analysis",
+    "real Tk callbacks saved MAT/CSV/TXT and reproducible report; no native chooser test"
+  ],
+  "screenshots": [
+    "replay-early.png",
+    "replay-partial.png",
+    "console-1440.png",
+    "console-1280.png",
+    "analysis-1280.png",
+    "export-1280.png",
+    "history-1280.png"
+  ],
+  "point_count": 72,
+  "source": "Fixture replay \u00b7 hyperframe_simulated_fixture.mat",
+  "badge": "No hardware - simulated fixture",
+  "live_hardware_used": false,
+  "native_dialogs_tested": false,
+  "python": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 11:23:37) [Clang 14.0.6 ]",
+  "tk": "8.6.14"
+}

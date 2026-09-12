@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from app.domain.models import AppSettings, ReferenceCurve
+from app.domain.models import AppSettings, ReferenceCurve, SweepResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +66,60 @@ def build_reference_receipt(
             f"Sweep: {sweep_text}",
         ]
     )
+    return ReferenceReceipt(summary=summary, warnings=tuple(warnings))
+
+
+def build_analysis_reference_receipt(
+    path: Path,
+    curve: ReferenceCurve,
+    result: SweepResult,
+    requested_correction: str,
+    coverage: str,
+) -> ReferenceReceipt:
+    """Describe reference coverage against the actual loaded result frequencies."""
+    reference_freq = np.atleast_1d(np.asarray(curve.freq_hz, dtype=float).squeeze())
+    result_freq = np.atleast_1d(np.asarray(result.freq_array(), dtype=float).squeeze())
+    phase = None if curve.phase_deg is None else np.atleast_1d(np.asarray(curve.phase_deg, dtype=float).squeeze())
+
+    point_count = int(reference_freq.size)
+    phase_present = phase is not None and phase.size > 0 and bool(np.any(np.isfinite(phase)))
+    if point_count > 0 and np.any(np.isfinite(reference_freq)):
+        finite_reference = reference_freq[np.isfinite(reference_freq)]
+        reference_min = float(np.min(finite_reference))
+        reference_max = float(np.max(finite_reference))
+        coverage_text = f"{_format_frequency(reference_min)} - {_format_frequency(reference_max)}"
+    else:
+        reference_min = reference_max = float("nan")
+        coverage_text = "coverage unavailable"
+
+    outside_count = 0
+    if result_freq.size > 0 and np.isfinite(reference_min) and np.isfinite(reference_max):
+        outside_count = int(np.count_nonzero((result_freq < reference_min) | (result_freq > reference_max)))
+
+    current_correction = str(result.meta.get("reference_correction") or "unknown")
+    result_range = "unavailable"
+    finite_result = result_freq[np.isfinite(result_freq)]
+    if finite_result.size > 0:
+        result_range = f"{_format_frequency(float(np.min(finite_result)))} - {_format_frequency(float(np.max(finite_result)))}"
+
+    summary = "\n".join(
+        [
+            f"Reference: {path.name}",
+            f"Dir: {path.parent}",
+            f"Coverage: {coverage_text} · {point_count} pts · phase {'yes' if phase_present else 'no'}",
+            f"Result: {result_range} · {result_freq.size} pts · outside {outside_count}",
+            f"Correction: requested {requested_correction}; current result {current_correction}",
+            f"Coverage policy: {coverage}",
+            "Reference selection alone leaves the current plot unchanged",
+        ]
+    )
+    warnings: list[str] = []
+    if outside_count:
+        warnings.append(
+            f"{outside_count} result points are outside reference coverage; policy={coverage}."
+        )
+    if point_count == 0:
+        warnings.append("Reference frequency data is empty.")
     return ReferenceReceipt(summary=summary, warnings=tuple(warnings))
 
 

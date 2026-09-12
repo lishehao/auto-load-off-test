@@ -29,6 +29,30 @@ class SweepEngineTests(unittest.TestCase):
         window = compute_sampling_window_s(freq_hz=1e3, sample_rate_hz=1e6, points=10000)
         self.assertGreater(window, 0)
 
+    def test_tiny_frequency_range_has_no_absolute_tolerance_overshoot(self) -> None:
+        spec = SweepSpec(start_hz=1e-6, stop_hz=1.0999e-6, step_hz=1e-12, step_count=None, is_log=False)
+
+        points = generate_frequency_points(spec)
+
+        self.assertEqual(len(points), 99_901)
+        self.assertLessEqual(float(points[-1]), spec.stop_hz)
+        self.assertAlmostEqual(float(points[-1]), spec.stop_hz, delta=1e-18)
+
+    def test_linear_generation_does_not_accumulate_addition_drift(self) -> None:
+        points = generate_frequency_points(
+            SweepSpec(start_hz=0.1, stop_hz=0.3, step_hz=0.1, step_count=None, is_log=False)
+        )
+
+        np.testing.assert_allclose(points, np.array([0.1, 0.2, 0.3]))
+
+    def test_generation_rejects_nonfinite_or_nonpositive_frequency(self) -> None:
+        for start_hz, stop_hz in ((0.0, 1.0), (1.0, float("nan")), (1.0, float("inf"))):
+            with self.subTest(start_hz=start_hz, stop_hz=stop_hz):
+                with self.assertRaises(ValueError):
+                    generate_frequency_points(
+                        SweepSpec(start_hz, stop_hz, 1.0, None, False)
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()

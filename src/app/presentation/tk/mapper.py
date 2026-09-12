@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import math
+import re
+from typing import TYPE_CHECKING
+
 from app.shared.cvt_tools import CvtTools
 
 from app.domain.enums import (
@@ -20,16 +24,38 @@ from app.domain.models import (
     RunMode,
     SweepSpec,
 )
-from app.presentation.tk.view_model import ViewModel
+if TYPE_CHECKING:
+    from app.presentation.tk.view_model import ViewModel
 
 
-
-def _safe_int(value: str, default: int) -> int:
-    parsed = CvtTools.parse_general_val(value)
+def _safe_int(value: str, default: int | None = None) -> int:
+    """Parse an integer control without silently replacing invalid input."""
+    del default  # Kept for callers of the legacy helper.
+    text = str(value).strip()
+    if re.fullmatch(r"[+-]?\d+", text) is None:
+        raise ValueError(f"Expected integer value, got {value!r}")
     try:
-        return int(parsed)
-    except Exception:
-        return default
+        return int(text, 10)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"Expected integer value, got {value!r}") from exc
+
+
+def _optional_int(value: str) -> int | None:
+    text = str(value).strip()
+    return None if not text else _safe_int(text)
+
+
+def _finite_float(name: str, value: str, parser) -> float:
+    text = str(value).strip()
+    if re.search(r"\d", text) is None:
+        raise ValueError(f"Expected finite numeric value for {name}, got {value!r}")
+    try:
+        parsed = float(parser(text))
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"Expected finite numeric value for {name}, got {value!r}") from exc
+    if not math.isfinite(parsed):
+        raise ValueError(f"Expected finite numeric value for {name}, got {value!r}")
+    return parsed
 
 
 
@@ -37,11 +63,21 @@ def vm_to_settings(vm: ViewModel) -> AppSettings:
     freq_unit = vm.freq_unit.get()
     is_log = bool(vm.is_log.get())
 
-    start_hz = float(CvtTools.parse_to_hz(vm.start_freq.get(), freq_unit))
-    stop_hz = float(CvtTools.parse_to_hz(vm.stop_freq.get(), freq_unit))
+    start_hz = _finite_float(
+        "start_freq", vm.start_freq.get(), lambda text: CvtTools.parse_to_hz(text, freq_unit)
+    )
+    stop_hz = _finite_float(
+        "stop_freq", vm.stop_freq.get(), lambda text: CvtTools.parse_to_hz(text, freq_unit)
+    )
 
-    step_hz = None if is_log else float(CvtTools.parse_to_hz(vm.step_freq.get(), freq_unit))
-    step_count = _safe_int(vm.step_count.get(), 100) if is_log else None
+    step_hz = (
+        None
+        if is_log
+        else _finite_float(
+            "step_freq", vm.step_freq.get(), lambda text: CvtTools.parse_to_hz(text, freq_unit)
+        )
+    )
+    step_count = _safe_int(vm.step_count.get()) if is_log else None
 
     correction_mode = CorrectionMode(vm.correction_mode.get())
     trigger_mode = TriggerMode(vm.trigger_mode.get())
@@ -78,17 +114,17 @@ def vm_to_settings(vm: ViewModel) -> AppSettings:
             channels=ChannelSelection(
                 awg_ch=_safe_int(vm.awg_ch.get(), 1),
                 osc_test_ch=_safe_int(vm.osc_test_ch.get(), 1),
-                osc_ref_ch=_safe_int(vm.osc_ref_ch.get(), 2),
-                osc_trig_ch=_safe_int(vm.osc_trig_ch.get(), 2),
+                osc_ref_ch=_optional_int(vm.osc_ref_ch.get()),
+                osc_trig_ch=_optional_int(vm.osc_trig_ch.get()),
             ),
             awg_settings=AwgSettings(
-                amplitude_vpp=float(CvtTools.parse_to_Vpp(vm.awg_amp.get())),
+                amplitude_vpp=_finite_float("awg_amp", vm.awg_amp.get(), CvtTools.parse_to_Vpp),
                 impedance=ImpedanceMode(vm.awg_imp.get()),
             ),
             osc_settings=OscSettings(
-                full_scale_v=float(CvtTools.parse_to_V(vm.osc_range.get())),
-                offset_v=float(CvtTools.parse_to_V(vm.osc_offset.get())),
-                points=max(2, _safe_int(vm.osc_points.get(), 10_000)),
+                full_scale_v=_finite_float("osc_range", vm.osc_range.get(), CvtTools.parse_to_V),
+                offset_v=_finite_float("osc_offset", vm.osc_offset.get(), CvtTools.parse_to_V),
+                points=_safe_int(vm.osc_points.get()),
                 impedance=ImpedanceMode(vm.osc_imp.get()),
                 coupling=CouplingMode(vm.osc_coupling.get()),
             ),

@@ -22,16 +22,15 @@ class AppPathsTests(unittest.TestCase):
         self.assertEqual(paths.settings_path.name, "settings.json")
         self.assertEqual(paths.measurement_dir.name, "measurement")
 
-    def test_default_uses_working_directory(self) -> None:
+    def test_default_uses_platform_user_data_directory(self) -> None:
         with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {}, clear=True):
-            previous = Path.cwd()
-            try:
-                os.chdir(td)
+            with patch("app.runtime.paths.sys.platform", "darwin"), patch(
+                "app.runtime.paths.Path.home", return_value=Path(td)
+            ):
                 paths = AppPaths.default()
-            finally:
-                os.chdir(previous)
 
-        self.assertEqual(paths.root_dir, Path(td).resolve())
+        expected = (Path(td) / "Library" / "Application Support" / "Auto-Load-off-Test").resolve()
+        self.assertEqual(paths.root_dir, expected)
 
     def test_default_can_be_overridden_by_environment(self) -> None:
         with tempfile.TemporaryDirectory() as td, patch.dict(os.environ, {APP_ROOT_ENV: td}, clear=True):

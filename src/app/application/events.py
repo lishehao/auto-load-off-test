@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from app.domain.models import SweepPoint, SweepResult
+from app.domain.models import AppSettings, SweepPoint, SweepResult
 
 
 class EventEmitter(Protocol):
@@ -39,6 +39,7 @@ class SweepWarning:
 class SweepFailed:
     error_code: str
     message: str
+    result: SweepResult | None = None
 
 
 @dataclass(slots=True)
@@ -49,6 +50,18 @@ class SweepCompleted:
 @dataclass(slots=True)
 class SweepStopped:
     result: SweepResult
+
+
+@dataclass(slots=True)
+class SweepWorkerFinished:
+    result: SweepResult
+
+
+@dataclass(slots=True)
+class SweepAutoSaved:
+    artifacts: object
+    result: SweepResult
+    settings: AppSettings
 
 
 @dataclass(slots=True)

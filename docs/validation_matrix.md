@@ -1,5 +1,10 @@
 # Validation Matrix
 
+The [2026-09-12 desktop acceptance record](validation/desktop-workflows-2026-09-12.md) documents the current
+local branch candidate, including installed-wheel checks and real macOS Tk screenshots. Local acceptance does
+not imply publication or a new target-Windows packaging run. macOS is the UI acceptance target for this
+iteration; Windows UI validation is explicitly outside the delivery scope, not a pending acceptance gate.
+
 This matrix separates software evidence from claims that require physical instruments, a calibrated bench, or a
 target workstation. The project currently has no public live-instrument validation record.
 
@@ -20,6 +25,7 @@ target workstation. The project currently has no public live-instrument validati
 | Measurement/reference input | Automated hardware-free | Strict tests reject missing fields, length mismatches, NaN/inf gain, non-positive/duplicate/unsorted frequencies, and invalid references. | Provenance or metrological quality of third-party files. |
 | Reference correction | Automated hardware-free | The 72-point fixture reconstructs corrected gain/phase from raw plus reference curves and compares against checked-in expected arrays. | Calibration traceability, uncertainty, or bench accuracy. |
 | Export and reload | Automated hardware-free | MAT/CSV/TXT export, metadata boundary, and MAT/CSV reload are verified end to end. | Compatibility with every external analysis tool/version. |
+| Offline analysis and report bundle | Automated hardware-free, local candidate | CLI subprocess, explicit coverage/phase checks, known double-correction guard, input snapshots, artifact hashes, new-output protection, and export-failure cleanup. See [local validation record](validation/offline-analysis-2026-09-12.md). | Live acquisition provenance, browser layout on every viewport, target-OS package validation of this new command, or measurement uncertainty. |
 | Tk workflow state | Automated hardware-free | Pure view-model/event-handler tests cover fixture/live/loaded source states, receipts, Bode defaults, and neutral hardware status. | Pixel-perfect rendering on every OS/theme. |
 | Operator demo | Manual real-UI | The checked-in poster/MP4 captures the actual Tk window from 0/72 through 72/72, a loaded reference/coverage receipt, and a temporary export receipt. | A live sweep or connected-instrument validation. |
 | Windows one-folder package | Automated hardware-free | CI builds PyInstaller output and runs bundled fixture/reference/export/reload through `--package-smoke`. | Driver installation, manual Windows GUI smoke, code signing, or live VISA access. |

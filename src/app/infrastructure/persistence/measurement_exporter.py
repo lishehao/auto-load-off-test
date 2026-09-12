@@ -4,6 +4,7 @@ import csv
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from scipy.io import savemat
@@ -15,7 +16,7 @@ from app.domain.models import AppSettings, SweepResult
 
 
 class MeasurementExporter:
-    def export(self, result: SweepResult, settings: AppSettings, target: SaveTarget) -> SaveArtifacts:
+    def export(self, result: SweepResult, settings: AppSettings | None, target: SaveTarget) -> SaveArtifacts:
         validate_sweep_result(result)
         directory = target.base_path.parent
         directory.mkdir(parents=True, exist_ok=True)
@@ -31,22 +32,26 @@ class MeasurementExporter:
         arrays = result_to_arrays(result)
         source = str(result.meta.get("source") or "unknown")
         validation_boundary = _validation_boundary(result)
-        metadata = settings_to_metadata(settings)
+        correction_mode = _correction_mode(result, settings)
+        metadata = settings_to_metadata(settings) if settings is not None else {"schema_version": 1}
         metadata["result"] = dict(result.meta)
-        metadata["export"] = {
+        export_receipt: dict[str, Any] = {
             "point_count": len(result.points),
             "source": source,
             "validation_boundary": validation_boundary,
             "exported_at_utc": datetime.now(timezone.utc).isoformat(),
         }
+        _copy_provenance(result.meta, export_receipt)
+        metadata["export"] = export_receipt
         payload: dict[str, object] = {
-            "schema_version": settings.schema_version,
+            "schema_version": settings.schema_version if settings is not None else 1,
             "metadata_json": json.dumps(metadata, ensure_ascii=True, default=_json_default),
             "source": source,
             "point_count": len(result.points),
-            "correction_mode": settings.run_mode.correction_mode.value,
+            "correction_mode": correction_mode,
             "validation_boundary": validation_boundary,
         }
+        _copy_provenance(result.meta, payload, exclude={"correction_mode", "source", "validation_boundary"})
         payload.update(arrays)
         savemat(mat_path, payload)
 
@@ -63,6 +68,9 @@ class MeasurementExporter:
             "gain_linear",
             "gain_db",
             "phase_deg",
+            "reference_correction",
+            "analysis_id",
+            "dataset",
         ]
         with csv_path.open("w", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
@@ -72,11 +80,14 @@ class MeasurementExporter:
                     [
                         source,
                         validation_boundary,
-                        settings.run_mode.correction_mode.value,
+                        correction_mode,
                         float(freq[idx]),
                         float(gain_linear[idx]) if idx < len(gain_linear) else "",
                         float(gain_db[idx]) if idx < len(gain_db) else "",
                         _optional_float(phase, idx),
+                        _provenance_value(result.meta, "reference_correction"),
+                        _provenance_value(result.meta, "analysis_id"),
+                        _provenance_value(result.meta, "dataset"),
                     ]
                 )
 
@@ -109,6 +120,31 @@ class MeasurementExporter:
             gain_plot_path=gain_plot_path,
             db_plot_path=db_plot_path,
         )
+
+
+_PROVENANCE_KEYS = ("reference_correction", "analysis_id", "dataset")
+
+
+def _correction_mode(result: SweepResult, settings: AppSettings | None) -> str:
+    if settings is not None:
+        return settings.run_mode.correction_mode.value
+    return _provenance_value(result.meta, "correction_mode") or "unknown"
+
+
+def _provenance_value(meta: dict[str, Any], key: str) -> str:
+    value = meta.get(key)
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _copy_provenance(
+    source: dict[str, Any], destination: dict[str, Any], *, exclude: set[str] | None = None
+) -> None:
+    excluded = exclude or set()
+    for key in _PROVENANCE_KEYS:
+        if key not in excluded and _provenance_value(source, key):
+            destination[key] = _provenance_value(source, key)
 
 
 def _optional_float(values: np.ndarray, idx: int) -> float | str:

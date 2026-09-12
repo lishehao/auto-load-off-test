@@ -50,6 +50,15 @@ class ViewModel:
         self.plot_scale = tk.StringVar(root, value="auto")
         self.source_mode = tk.StringVar(root, value="live")
 
+        # Presentation state is intentionally separate from the domain run mode.
+        # Controllers can update it without changing persisted hardware settings.
+        self.operation_mode = tk.StringVar(root, value="idle")
+        self.replay_speed = tk.StringVar(root, value="1x")
+        self.analysis_dataset = tk.StringVar(root, value="canonical")
+        self.analysis_correction = tk.StringVar(root, value="none")
+        self.analysis_coverage = tk.StringVar(root, value="reject")
+        self.analysis_status_text = tk.StringVar(root, value="No file analysis applied")
+
         self.status_text = tk.StringVar(root, value="Ready")
         self.run_state_text = tk.StringVar(root, value="Idle")
         self.progress_text = tk.StringVar(root, value="0 / 0")
@@ -65,3 +74,7 @@ class ViewModel:
         self.awg_connection_text = tk.StringVar(root, value="AWG offline")
         self.osc_connection_text = tk.StringVar(root, value="OSC offline")
         self.discovery_status_text = tk.StringVar(root, value="Scan VISA resources or test current addresses")
+
+        self.safety_limits_checked = tk.BooleanVar(root, value=False)
+        self.safety_connections_checked = tk.BooleanVar(root, value=False)
+        self.safety_output_checked = tk.BooleanVar(root, value=False)

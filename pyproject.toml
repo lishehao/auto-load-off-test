@@ -37,6 +37,9 @@ capture = [
 package-dir = {"" = "src"}
 py-modules = ["main", "equips", "mapping", "cvtTools"]
 
+[tool.setuptools.package-data]
+"app.runtime" = ["demo_data/*.mat"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["app*"]

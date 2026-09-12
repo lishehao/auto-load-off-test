@@ -21,6 +21,8 @@ class ControlPanel(tk.Frame):
         super().__init__(parent, bg=PANEL_BG)
         self._vm = vm
         self._trace_ids: list[tuple[tk.StringVar, str]] = []
+        self._input_widgets: list[tk.Widget] = []
+        self._action_widgets: list[tk.Widget] = []
         self._build()
 
     def bind_actions(
@@ -35,6 +37,14 @@ class ControlPanel(tk.Frame):
         self.btn_load_settings.configure(command=on_load_settings)
         self.btn_scan_resources.configure(command=on_scan_resources)
         self.btn_test_connect.configure(command=on_test_connect)
+
+    def set_operation_state(self, mode: str) -> None:
+        """Lock setup while an operation is in flight, including discovery."""
+        for widget in self._input_widgets + self._action_widgets:
+            if isinstance(widget, ttk.Combobox):
+                widget.configure(state="readonly" if mode == "idle" else "disabled")
+            else:
+                widget.configure(state="normal" if mode == "idle" else "disabled")
 
     def _build(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -80,8 +90,10 @@ class ControlPanel(tk.Frame):
         actions.grid_columnconfigure((0, 1), weight=1)
         self.btn_scan_resources = ttk.Button(actions, text="Scan Resources")
         self.btn_scan_resources.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self._action_widgets.append(self.btn_scan_resources)
         self.btn_test_connect = ttk.Button(actions, text="Test Connect")
         self.btn_test_connect.grid(row=0, column=1, sticky="ew")
+        self._action_widgets.append(self.btn_test_connect)
         tk.Label(
             section,
             textvariable=self._vm.discovery_status_text,
@@ -129,13 +141,15 @@ class ControlPanel(tk.Frame):
                 ("Auto save", self._vm.auto_save_data),
             )
         ):
-            ttk.Checkbutton(toggles, text=label, variable=variable).grid(
+            checkbutton = ttk.Checkbutton(toggles, text=label, variable=variable)
+            checkbutton.grid(
                 row=idx // 2,
                 column=idx % 2,
                 sticky="w",
                 padx=(0, 10),
                 pady=1,
             )
+            self._input_widgets.append(checkbutton)
 
     def _build_settings_actions(self, row: int) -> None:
         actions = ttk.Frame(self)
@@ -143,8 +157,10 @@ class ControlPanel(tk.Frame):
         actions.grid_columnconfigure((0, 1), weight=1)
         self.btn_save_settings = ttk.Button(actions, text="Save Settings")
         self.btn_save_settings.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self._action_widgets.append(self.btn_save_settings)
         self.btn_load_settings = ttk.Button(actions, text="Load Settings")
         self.btn_load_settings.grid(row=0, column=1, sticky="ew")
+        self._action_widgets.append(self.btn_load_settings)
 
     def _combo(
         self,
@@ -160,6 +176,7 @@ class ControlPanel(tk.Frame):
         self._label(parent, label, row, label_col=label_col)
         combo = ttk.Combobox(parent, textvariable=variable, values=values, width=width, state="readonly")
         combo.grid(row=row, column=label_col + 1, sticky="ew", pady=1)
+        self._input_widgets.append(combo)
         return combo
 
     def _entry(
@@ -175,6 +192,7 @@ class ControlPanel(tk.Frame):
         self._label(parent, label, row, label_col=label_col)
         entry = ttk.Entry(parent, textvariable=variable, width=width)
         entry.grid(row=row, column=label_col + 1, sticky="ew", pady=1)
+        self._input_widgets.append(entry)
         return entry
 
     def _label(self, parent: tk.Misc, text: str, row: int, *, label_col: int = 0) -> None:

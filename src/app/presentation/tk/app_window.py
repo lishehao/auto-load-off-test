@@ -24,9 +24,11 @@ class AppWindow(tk.Tk):
 
         container = tk.Frame(self, bg="#f4f6f8")
         container.pack(fill=tk.BOTH, expand=True, padx=12, pady=12)
-        container.grid_columnconfigure(0, weight=0, minsize=295)
-        container.grid_columnconfigure(1, weight=1, minsize=640)
-        container.grid_columnconfigure(2, weight=0, minsize=355)
+        # Keep the 1280px capture target feasible after outer padding and the
+        # two inter-column gutters: 280 + 500 + 340 + 24 + 24 = 1168px.
+        container.grid_columnconfigure(0, weight=0, minsize=280)
+        container.grid_columnconfigure(1, weight=1, minsize=500)
+        container.grid_columnconfigure(2, weight=0, minsize=340)
         container.grid_rowconfigure(0, weight=1)
 
         left = tk.Frame(container, bg="#f4f6f8", width=300)
@@ -54,6 +56,7 @@ class AppWindow(tk.Tk):
         self.run_panel = RunPanel(right_content, self.vm)
         self.run_panel.pack(fill=tk.BOTH, expand=True)
         self._alias_control_widgets()
+        self.set_operation_state("idle")
 
         status_bar = tk.Frame(self, bg="#e5eaf0")
         status_bar.pack(fill=tk.X, side=tk.BOTTOM)
@@ -96,6 +99,13 @@ class AppWindow(tk.Tk):
         on_figure_change,
         on_mag_phase_change,
         on_plot_scale_change,
+        on_replay_fixture=None,
+        on_apply_analysis=None,
+        on_reset_analysis=None,
+        on_clear_reference=None,
+        on_export_report=None,
+        on_open_output=None,
+        on_plot_reset=None,
     ) -> None:
         self.control_panel.bind_actions(
             on_save_settings=on_save_settings,
@@ -112,18 +122,46 @@ class AppWindow(tk.Tk):
             on_load_ref=on_load_ref,
             on_save_settings=on_save_settings,
             on_load_settings=on_load_settings,
+            on_replay_fixture=on_replay_fixture,
+            on_apply_analysis=on_apply_analysis,
+            on_reset_analysis=on_reset_analysis,
+            on_clear_reference=on_clear_reference,
+            on_export_report=on_export_report,
+            on_open_output=on_open_output,
         )
         self.plot_widget.bind_controls(
             on_figure_change=on_figure_change,
             on_mag_phase_change=on_mag_phase_change,
             on_plot_scale_change=on_plot_scale_change,
+            on_plot_reset=on_plot_reset,
         )
         self._on_close = on_close
 
+    def set_operation_state(
+        self,
+        mode: str,
+        *,
+        has_data: bool = False,
+        can_replay: bool = False,
+        has_reference: bool = False,
+        can_analyze: bool = False,
+        has_output: bool = False,
+    ) -> None:
+        self.vm.operation_mode.set(mode)
+        self.control_panel.set_operation_state(mode)
+        self.run_panel.set_operation_state(
+            mode,
+            has_data=has_data,
+            can_replay=can_replay,
+            has_reference=has_reference,
+            can_analyze=can_analyze,
+            has_output=has_output,
+        )
+
+    def clear_reference_coverage(self) -> None:
+        self.plot_widget.clear_reference_coverage()
+
     def set_connection_status(self, awg_connected: bool, osc_connected: bool) -> None:
-        if self.vm.source_mode.get() != "live":
-            self.set_connection_idle()
-            return
         self.canvas_awg.itemconfig(self.awg_light, fill="green" if awg_connected else "red")
         self.canvas_osc.itemconfig(self.osc_light, fill="green" if osc_connected else "red")
         self.vm.awg_connection_text.set("AWG online" if awg_connected else "AWG offline")
@@ -147,7 +185,14 @@ class AppWindow(tk.Tk):
         self.btn_save_data = self.run_panel.btn_save_data
         self.btn_load_data = self.run_panel.btn_load_data
         self.btn_load_demo_fixture = self.run_panel.btn_load_demo_fixture
+        self.btn_replay_fixture = self.run_panel.btn_replay_fixture
+        self.cmb_replay_speed = self.run_panel.cmb_replay_speed
         self.btn_load_ref = self.run_panel.btn_load_ref
+        self.btn_clear_reference = self.run_panel.btn_clear_reference
+        self.btn_apply_analysis = self.run_panel.btn_apply_analysis
+        self.btn_reset_analysis = self.run_panel.btn_reset_analysis
+        self.btn_export_report = self.run_panel.btn_export_report
+        self.btn_open_output = self.run_panel.btn_open_output
         self.btn_save_settings = self.control_panel.btn_save_settings
         self.btn_load_settings = self.control_panel.btn_load_settings
         self.btn_scan_resources = self.control_panel.btn_scan_resources
@@ -155,6 +200,7 @@ class AppWindow(tk.Tk):
         self.cmb_figure = self.plot_widget.cmb_figure
         self.cmb_mag_phase = self.plot_widget.cmb_mag_phase
         self.cmb_plot_scale = self.plot_widget.cmb_plot_scale
+        self.btn_fit_plot = self.plot_widget.btn_fit_plot
 
     def _build_sidebar(self, parent: tk.Frame) -> ControlPanel:
         content = self._build_scrollable_content(parent, width=300)
@@ -197,3 +243,14 @@ class AppWindow(tk.Tk):
         style.configure("TFrame", background="#ffffff")
         style.configure("TButton", padding=(8, 5))
         style.configure("TCombobox", padding=2)
+        for name, background, active in (
+            ("Accent.TButton", "#15803d", "#166534"),
+            ("Danger.TButton", "#b91c1c", "#991b1b"),
+            ("Demo.TButton", "#b45309", "#92400e"),
+        ):
+            style.configure(name, background=background, foreground="#ffffff", padding=(8, 6))
+            style.map(
+                name,
+                background=[("disabled", "#e5e7eb"), ("pressed", active), ("active", active), ("!disabled", background)],
+                foreground=[("disabled", "#6b7280"), ("!disabled", "#ffffff")],
+            )

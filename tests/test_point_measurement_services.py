@@ -14,6 +14,7 @@ from app.application.services.sweep.calibration_applier import CalibrationApplie
 from app.application.services.sweep.models import AcquiredPointData
 from app.application.services.sweep.point_measurement_service import PointMeasurementService
 from app.domain.enums import ConnectionMode, CorrectionMode, CouplingMode, ImpedanceMode, MagnitudePhaseMode, TriggerMode
+from app.domain.data_validation import DataValidationError
 from app.domain.models import (
     AppSettings,
     AwgSettings,
@@ -121,7 +122,7 @@ class PointMeasurementServiceTests(unittest.TestCase):
         self.assertAlmostEqual(corrected.gain_linear, 1.0, delta=1e-6)
         self.assertAlmostEqual(corrected.phase_deg or 0.0, 20.0, delta=1e-6)
 
-    def test_calibration_applier_handles_zero_reference(self) -> None:
+    def test_calibration_applier_rejects_zero_reference(self) -> None:
         point = SweepPoint(
             freq_hz=5_000.0,
             gain_linear=1.0,
@@ -135,9 +136,8 @@ class PointMeasurementServiceTests(unittest.TestCase):
             reference_interpolator=lambda _xs: np.array([0.0 + 0.0j]),
         )
 
-        corrected = self.calibration.apply(point=point, cmd=cmd)
-        self.assertTrue(math.isfinite(corrected.gain_linear))
-        self.assertTrue(math.isfinite(corrected.gain_db))
+        with self.assertRaisesRegex(DataValidationError, "finite and non-zero"):
+            self.calibration.apply(point=point, cmd=cmd)
 
 
 if __name__ == "__main__":

@@ -11,6 +11,12 @@ class DataValidationError(ValueError):
     """Raised when imported or exported measurement data is structurally unsafe."""
 
 
+# CSV values are commonly rounded to a few decimal places.  Keep this tolerance
+# in dB (rather than applying a relative tolerance to linear gain) so that the
+# consistency check has a stable meaning across the measurement range.
+DB_CONSISTENCY_ATOL = 1e-4
+
+
 @dataclass(frozen=True, slots=True)
 class MeasurementArrays:
     freq_hz: np.ndarray
@@ -55,9 +61,22 @@ def normalize_measurement_arrays(
 
     if linear is None:
         assert db is not None
-        linear = np.power(10.0, db / 20.0)
+        linear = _db_to_linear(db, "Measurement gain_db")
+    else:
+        # Convert even when both columns are present so an extreme dB value
+        # cannot silently pass as an unrepresentable linear value.
+        assert db is None or db.size == freq.size
+        if db is not None:
+            _db_to_linear(db, "Measurement gain_db")
     if db is None:
         db = 20.0 * np.log10(linear)
+    else:
+        derived_db = 20.0 * np.log10(linear)
+        if not np.all(np.isclose(db, derived_db, rtol=0.0, atol=DB_CONSISTENCY_ATOL)):
+            raise DataValidationError(
+                "Measurement gain_linear and gain_db are inconsistent "
+                f"beyond {DB_CONSISTENCY_ATOL:g} dB"
+            )
 
     phase = None if phase_deg is None else _vector("phase_deg", phase_deg)
     if phase is not None:
@@ -84,6 +103,7 @@ def normalize_reference_curve(curve: ReferenceCurve) -> ReferenceCurve:
         raise DataValidationError("Reference frequency values must be strictly increasing without duplicates")
     if not np.all(np.isfinite(gain_db)):
         raise DataValidationError("Reference gain_db contains NaN or infinity")
+    _db_to_linear(gain_db, "Reference gain_db")
 
     phase = None if curve.phase_deg is None else _vector("reference phase_deg", curve.phase_deg)
     if phase is not None:
@@ -120,3 +140,12 @@ def _vector(name: str, value: object) -> np.ndarray:
 def _require_length(name: str, values: np.ndarray, expected: int) -> None:
     if values.size != expected:
         raise DataValidationError(f"{name} length {values.size} does not match frequency length {expected}")
+
+
+def _db_to_linear(values: np.ndarray, name: str) -> np.ndarray:
+    """Convert dB values while rejecting overflow and underflow to zero."""
+    with np.errstate(over="ignore", under="ignore", invalid="ignore", divide="ignore"):
+        linear = np.power(10.0, values / 20.0)
+    if not np.all(np.isfinite(linear)) or np.any(linear <= 0.0):
+        raise DataValidationError(f"{name} conversion is not finite and strictly positive representable")
+    return linear

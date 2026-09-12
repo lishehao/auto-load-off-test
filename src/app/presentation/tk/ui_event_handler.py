@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from app.application.events import (
     ConnectionStatusUpdated,
+    SweepAutoSaved,
     SweepCompleted,
     SweepDataUpdated,
     SweepFailed,
@@ -12,7 +14,9 @@ from app.application.events import (
     SweepStarted,
     SweepStopped,
     SweepWarning,
+    SweepWorkerFinished,
 )
+from app.application.services.export_receipts import build_export_receipt
 from app.domain.models import SweepResult
 
 if TYPE_CHECKING:
@@ -33,8 +37,6 @@ class UiEventHandler:
         return self._latest_result
 
     def prepare_for_sweep_start(self) -> None:
-        self._window.btn_start.configure(state="disabled")
-        self._window.btn_stop.configure(state="normal")
         self._started_at = time.monotonic()
         self._vm.status_text.set("Sweep started")
         self._vm.run_state_text.set("Running")
@@ -46,7 +48,7 @@ class UiEventHandler:
 
     def set_result(self, result: SweepResult, *, refresh_plot: bool = True) -> None:
         self._latest_result = result
-        self._vm.point_count_text.set(f"{len(result.points)} points")
+        self._set_point_count(result)
         if refresh_plot:
             self.refresh_plot()
 
@@ -67,10 +69,7 @@ class UiEventHandler:
         self._vm.validation_receipt_text.set(f"{label}; not live hardware validation")
         self._vm.export_receipt_text.set("Fixture loaded; Save Data exports the current result")
         self._vm.run_state_text.set("Fixture ready")
-        if point_count:
-            self._vm.progress_text.set(f"{point_count} / {point_count}")
-            self._vm.latest_frequency_text.set(_format_frequency(self._latest_result.points[-1].freq_hz))
-            self._vm.elapsed_text.set("00:00")
+        self._reset_acquisition_display(point_count=point_count)
         self._window.set_connection_idle()
         self._window.plot_widget.set_mode("gain_db")
         self.refresh_plot()
@@ -83,6 +82,7 @@ class UiEventHandler:
         self._vm.validation_receipt_text.set("Loaded file; live hardware state not implied")
         self._vm.export_receipt_text.set("Loaded measurement; Save Data exports the current result")
         self._vm.run_state_text.set("Data loaded")
+        self._reset_acquisition_display(point_count=len(self._latest_result.points))
         self._window.set_connection_idle()
         self.record_event(f"Loaded measurement: {path_name}")
 
@@ -104,9 +104,10 @@ class UiEventHandler:
         self.record_event("Export artifacts saved")
 
     def record_event(self, message: str, *, level: str = "Info") -> None:
-        line = f"{level}: {message}"
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        line = f"{timestamp}  {level}: {message}"
         self._event_history.append(line)
-        self._event_history = self._event_history[-5:]
+        self._event_history = self._event_history[-100:]
         self._vm.event_history_text.set("\n".join(self._event_history))
 
     def refresh_plot(self) -> None:
@@ -122,10 +123,15 @@ class UiEventHandler:
             return
 
         if isinstance(event, SweepStarted):
+            self._started_at = time.monotonic()
+            self._latest_result = SweepResult(meta={"run_status": "running", "planned_points": event.total_points})
+            self.set_result(self._latest_result)
             self._vm.status_text.set(f"Sweep started ({event.total_points} points)")
             self._vm.run_state_text.set("Running")
             self._vm.progress_text.set(f"0 / {event.total_points}")
-            self._vm.point_count_text.set(f"0 / {event.total_points} points")
+            self._vm.latest_frequency_text.set("-")
+            self._vm.elapsed_text.set("00:00")
+            self.record_event(f"Sweep started ({event.total_points} points)")
             return
 
         if isinstance(event, SweepProgress):
@@ -141,40 +147,77 @@ class UiEventHandler:
 
         if isinstance(event, SweepWarning):
             self.record_event(event.message, level="Warning")
-            if event.code in {"READY", "FREQ_MISMATCH", "AMP_MISMATCH"}:
-                self._vm.status_text.set(event.message)
-            else:
-                _show_warning(self._window, event.message)
+            self._vm.status_text.set(event.message)
             return
 
         if isinstance(event, SweepFailed):
-            self._vm.status_text.set(f"Sweep failed: {event.message}")
-            self._vm.run_state_text.set("Failed")
-            self._window.btn_start.configure(state="normal")
-            self._window.btn_stop.configure(state="disabled")
+            result = event.result or self._latest_result
+            self.set_result(result)
+            self._set_terminal_display("Failed", result, f"Sweep failed: {event.message}")
             self.record_event(event.message, level="Error")
-            _show_warning(self._window, event.message)
             return
 
         if isinstance(event, SweepStopped):
-            self.set_result(event.result, refresh_plot=False)
-            self._vm.status_text.set("Sweep stopped")
-            self._vm.run_state_text.set("Stopped")
-            self._vm.elapsed_text.set(_format_elapsed(self._started_at))
-            self._window.btn_start.configure(state="normal")
-            self._window.btn_stop.configure(state="disabled")
+            self.set_result(event.result)
+            self._set_terminal_display("Stopped", event.result, "Sweep stopped")
             self.record_event("Sweep stopped")
             return
 
         if isinstance(event, SweepCompleted):
             self.set_result(event.result)
-            self._vm.status_text.set("Sweep completed")
-            self._vm.run_state_text.set("Completed")
-            self._vm.progress_text.set(f"{len(event.result.points)} / {len(event.result.points)}")
-            self._vm.elapsed_text.set(_format_elapsed(self._started_at))
-            self._window.btn_start.configure(state="normal")
-            self._window.btn_stop.configure(state="disabled")
+            self._set_terminal_display("Completed", event.result, "Sweep completed")
             self.record_event("Sweep completed")
+            return
+
+        if isinstance(event, SweepAutoSaved):
+            receipt = build_export_receipt(
+                artifacts=event.artifacts,
+                settings=event.settings,
+                result=event.result,
+                source_text=self._vm.data_source_text.get(),
+                fixture_badge_text=self._vm.fixture_badge_text.get(),
+            )
+            self.set_export_saved(receipt_text=receipt.summary)
+            return
+
+        if isinstance(event, SweepWorkerFinished):
+            self.set_result(event.result, refresh_plot=False)
+            self._vm.elapsed_text.set(_format_elapsed(self._started_at))
+            self.record_event("Worker finished; output-off requested, hardware state not independently verified")
+            if self._vm.source_mode.get() == "live":
+                self._vm.validation_receipt_text.set(
+                    "Worker finished; output-off requested; hardware state not independently verified"
+                )
+
+    def _set_point_count(self, result: SweepResult) -> None:
+        count = len(result.points)
+        planned = _planned_points(result)
+        if planned > count:
+            self._vm.point_count_text.set(f"{count} / {planned} points")
+        else:
+            self._vm.point_count_text.set(f"{count} points")
+
+    def _reset_acquisition_display(self, *, point_count: int) -> None:
+        self._vm.elapsed_text.set("00:00")
+        self._vm.latest_frequency_text.set("-")
+        self._vm.progress_text.set(f"0 / {point_count}" if point_count else "0 / 0")
+
+    def _set_terminal_display(self, state: str, result: SweepResult, status: str) -> None:
+        self._vm.status_text.set(status)
+        self._vm.run_state_text.set(state)
+        self._vm.progress_text.set(_progress_text(result))
+        self._vm.elapsed_text.set(_format_elapsed(self._started_at))
+
+
+def _planned_points(result: SweepResult) -> int:
+    try:
+        return max(0, int(result.meta.get("planned_points", len(result.points))))
+    except (TypeError, ValueError):
+        return len(result.points)
+
+
+def _progress_text(result: SweepResult) -> str:
+    return f"{len(result.points)} / {_planned_points(result)}"
 
 
 def _format_elapsed(started_at: float | None) -> str:
@@ -190,9 +233,3 @@ def _format_frequency(freq_hz: float) -> str:
     if abs(freq_hz) >= 1_000:
         return f"{freq_hz / 1_000:.3g} kHz"
     return f"{freq_hz:.3g} Hz"
-
-
-def _show_warning(window: object, message: str) -> None:
-    from app.presentation.tk import dialogs
-
-    dialogs.show_warning(window, message)

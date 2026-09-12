@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from copy import deepcopy
 from typing import Any
 
 import numpy as np
@@ -88,6 +89,10 @@ class SweepResult:
 
     def append(self, point: SweepPoint) -> None:
         self.points.append(point)
+
+    def snapshot(self) -> "SweepResult":
+        """Return an independent result for asynchronous event delivery."""
+        return SweepResult(points=deepcopy(self.points), meta=deepcopy(self.meta))
 
     @property
     def is_empty(self) -> bool:

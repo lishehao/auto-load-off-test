@@ -17,7 +17,7 @@ class ExportReceipt:
 def build_export_receipt(
     *,
     artifacts: SaveArtifacts,
-    settings: AppSettings,
+    settings: AppSettings | None,
     result: SweepResult,
     source_text: str,
     fixture_badge_text: str,
@@ -27,6 +27,9 @@ def build_export_receipt(
     paths = _artifact_paths(artifacts)
     artifact_names = ", ".join(path.name for path in paths)
     boundary = _boundary_text(source_text=source_text, fixture_badge_text=fixture_badge_text)
+    correction = result.meta.get("reference_correction") or (
+        settings.run_mode.correction_mode.value if settings is not None else result.meta.get("correction_mode", "unknown")
+    )
 
     summary = "\n".join(
         [
@@ -35,7 +38,7 @@ def build_export_receipt(
             f"Artifacts: {artifact_names}",
             (
                 f"Metadata: source={source_text or 'unknown'}; "
-                f"correction={settings.run_mode.correction_mode.value}; "
+                f"correction={correction}; "
                 f"points={len(result.points)}; "
                 f"saved={saved_at.strftime('%Y-%m-%d %H:%M:%S')}"
             ),

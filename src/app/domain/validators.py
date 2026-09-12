@@ -1,44 +1,74 @@
 from __future__ import annotations
 
+import math
+
 from app.domain.enums import CorrectionMode, CouplingMode, ImpedanceMode, TriggerMode
 from app.domain.instrument_capabilities import InstrumentCapability, InstrumentRole, get_capability
 from app.domain.models import AppSettings, ChannelSelection, OscSettings, SweepSpec
+from app.domain.sweep_engine import MAX_SWEEP_POINTS, estimate_linear_sweep_points
 
 
 class ValidationError(ValueError):
     pass
 
 
+# Software guards prevent accidental giant allocations; they do not claim
+# hardware capability limits.
+MAX_CAPTURE_POINTS = 10_000_000
+
+
 def validate_sweep_spec(spec: SweepSpec) -> None:
-    if spec.start_hz <= 0:
+    start_hz = _finite_number("start_hz", spec.start_hz)
+    stop_hz = _finite_number("stop_hz", spec.stop_hz)
+    if start_hz <= 0:
         raise ValidationError("start_hz must be > 0")
-    if spec.stop_hz <= 0:
+    if stop_hz <= 0:
         raise ValidationError("stop_hz must be > 0")
-    if spec.stop_hz < spec.start_hz:
+    if stop_hz < start_hz:
         raise ValidationError("stop_hz must be >= start_hz")
 
     if spec.is_log:
-        if not spec.step_count or spec.step_count <= 0:
+        if spec.step_count is None:
             raise ValidationError("step_count must be > 0 for logarithmic sweep")
+        step_count = _positive_integer("step_count", spec.step_count)
+        if step_count > MAX_SWEEP_POINTS:
+            raise ValidationError(f"step_count exceeds software guard MAX_SWEEP_POINTS={MAX_SWEEP_POINTS}")
     else:
-        if not spec.step_hz or spec.step_hz <= 0:
+        if spec.step_hz is None:
             raise ValidationError("step_hz must be > 0 for linear sweep")
+        step_hz = _finite_number("step_hz", spec.step_hz)
+        if step_hz <= 0:
+            raise ValidationError("step_hz must be > 0 for linear sweep")
+        estimated = estimate_linear_sweep_points(start_hz, stop_hz, step_hz)
+        if estimated > MAX_SWEEP_POINTS:
+            raise ValidationError(
+                f"sweep has {estimated} points, exceeding software guard "
+                f"MAX_SWEEP_POINTS={MAX_SWEEP_POINTS}"
+            )
 
 
 def validate_channels(channels: ChannelSelection, correction_mode: CorrectionMode, trigger_mode: TriggerMode) -> None:
-    if channels.awg_ch <= 0 or channels.osc_test_ch <= 0:
-        raise ValidationError("Channel index must be positive")
+    _positive_integer("awg_ch", channels.awg_ch)
+    _positive_integer("osc_test_ch", channels.osc_test_ch)
+    for name, value in (("osc_ref_ch", channels.osc_ref_ch), ("osc_trig_ch", channels.osc_trig_ch)):
+        if value is not None:
+            _positive_integer(name, value)
 
-    if correction_mode == CorrectionMode.DUAL and not channels.osc_ref_ch:
+    if correction_mode == CorrectionMode.DUAL and channels.osc_ref_ch is None:
         raise ValidationError("osc_ref_ch is required for dual correction")
-    if trigger_mode == TriggerMode.TRIGGERED and not channels.osc_trig_ch:
+    if trigger_mode == TriggerMode.TRIGGERED and channels.osc_trig_ch is None:
         raise ValidationError("osc_trig_ch is required for triggered mode")
 
 
 def validate_osc_settings(settings: OscSettings) -> None:
-    if settings.points <= 1:
+    points = _positive_integer("osc points", settings.points)
+    if points <= 1:
         raise ValidationError("osc points must be > 1")
-    if settings.full_scale_v <= 0:
+    if points > MAX_CAPTURE_POINTS:
+        raise ValidationError(f"osc points exceeds software guard MAX_CAPTURE_POINTS={MAX_CAPTURE_POINTS}")
+    full_scale_v = _finite_number("osc full_scale_v", settings.full_scale_v)
+    _finite_number("osc offset_v", settings.offset_v)
+    if full_scale_v <= 0:
         raise ValidationError("osc full_scale_v must be > 0")
 
     if settings.impedance == ImpedanceMode.R50 and settings.coupling == CouplingMode.AC:
@@ -87,6 +117,8 @@ def validate_capabilities(settings: AppSettings, *, include_test: bool = False) 
 
 
 def validate_settings(settings: AppSettings, *, include_test: bool = False) -> None:
+    if _finite_number("AWG amplitude", settings.setup.awg_settings.amplitude_vpp) <= 0:
+        raise ValidationError("AWG amplitude must be > 0")
     validate_sweep_spec(settings.sweep)
     validate_osc_settings(settings.setup.osc_settings)
     validate_channels(
@@ -97,12 +129,37 @@ def validate_settings(settings: AppSettings, *, include_test: bool = False) -> N
     validate_capabilities(settings, include_test=include_test)
 
 
+def _finite_number(name: str, value: object) -> float:
+    if isinstance(value, bool):
+        raise ValidationError(f"{name} must be finite")
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValidationError(f"{name} must be finite") from exc
+    if not math.isfinite(number):
+        raise ValidationError(f"{name} must be finite")
+    return number
+
+
+def _positive_integer(name: str, value: object) -> int:
+    if isinstance(value, bool):
+        raise ValidationError(f"{name} must be an integer")
+    number = _finite_number(name, value)
+    if not number.is_integer():
+        raise ValidationError(f"{name} must be an integer")
+    integer = int(number)
+    if integer <= 0:
+        raise ValidationError(f"{name} must be > 0")
+    return integer
+
+
 def _validate_transport(label: str, mode, capability: InstrumentCapability) -> None:
     if mode not in capability.transports:
         raise ValidationError(f"{capability.model} does not support {label} connection mode {mode.value}")
 
 
 def _validate_limit(label: str, value: float, limit, model: str) -> None:
+    _finite_number(label, value)
     if limit.minimum is None and limit.maximum is None:
         return
     if limit.contains(float(value)):

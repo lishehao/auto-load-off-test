@@ -1,11 +1,11 @@
 <h1 align="center">Auto-Load-off-Test</h1>
 
 <p align="center">
-  <strong>A layered Python/Tkinter operator console for repeatable AWG-oscilloscope sweep workflows.</strong>
+  <strong>Repeatable measurement workflows. Inspectable results. No lab required to explore.</strong>
 </p>
 
 <p align="center">
-  Frequency sweep orchestration, gain/phase analysis, reference correction, operator receipts, and analysis-ready export.
+  A Python/Tkinter workbench for sweep orchestration, gain/phase analysis, reference correction, and reproducible reports.
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@ Auto-Load-off-Test refactors a tightly coupled lab script into a testable deskto
 operator UI, use-case orchestration, sweep and signal-processing logic, persistence, and model-specific instrument
 side effects. This makes the core workflow reproducible without requiring access to a physical lab bench.
 
-> **Validation boundary:** current public evidence is hardware-free. Production adapter paths are inspectable, but
+> **Validation boundary:** automated tests and demonstration evidence are hardware-free. Production adapter paths are inspectable, but
 > this repository does not claim current live AWG/oscilloscope, metrology, or production-safety validation.
 
 ## Demo
@@ -37,12 +37,20 @@ side effects. This makes the core workflow reproducible without requiring access
   <a href="https://youtu.be/fYokRzNnm84"><strong>Watch the operator console demo on YouTube</strong></a>
 </p>
 
-The linked walkthrough and repository recapture both use the real Tkinter application to replay a deterministic
-72-point fixture from an empty plot to a complete Bode result. Progress, latest frequency, reference coverage,
-correction state, source metadata, and export receipts update during the run. The poster and
-[local MP4 fallback](docs/images/auto-load-off-test-point-replay-demo.mp4) show the newer current-UI recapture.
-Throughout both artifacts, the UI remains visibly labeled **No hardware - simulated fixture**; production instrument
-adapters are not invoked.
+The published walkthrough shows an earlier real Tkinter console revision replaying a deterministic 72-point
+fixture, not a live acquisition. The [local MP4 fallback](docs/images/auto-load-off-test-point-replay-demo.mp4)
+is retained for offline viewing. Both keep **No hardware - simulated fixture** visible.
+
+### Current Desktop Workflow
+
+![Current Tkinter analysis workspace, using a simulated fixture](docs/images/desktop-analysis-workspace.png)
+
+The current branch adds ordinary **Load Demo Fixture / Replay Fixture** actions, stop-and-restart playback,
+explicit **Apply / Reset Analysis**, and a reproducible **Export Report** workflow. These run through the same
+controller used by the application, without capture-only plot animation. The
+[local acceptance record](docs/validation/desktop-workflows-2026-09-12.md) separates verified behavior from
+unverified hardware and native file dialogs. **macOS is the UI acceptance target for this iteration**;
+Windows UI validation is outside this delivery scope, not implied by cross-platform tests or packaging checks.
 
 ## Project At A Glance
 
@@ -72,14 +80,24 @@ and non-positive, duplicate, or unsorted frequencies. The deterministic
 [end-to-end workflow test](tests/test_hardware_free_workflow.py) reconstructs corrected gain and phase from raw plus
 reference curves, compares expected values, exports MAT/CSV/TXT, reloads MAT/CSV, and verifies source metadata.
 
-### 3. Operator state is part of the system design
+### 3. Reproducible analysis without a lab workstation
 
-The console distinguishes `live`, `loaded`, and `fixture` data sources. Long-running sweeps report point-level
-progress without blocking the Tk event loop; stop, cleanup, reference coverage, correction, export artifacts, and
-safety warnings remain visible as receipts instead of disappearing in transient dialogs. See the
+The [offline analysis command](docs/offline_analysis.md) accepts MAT/CSV files independently of the desktop and
+instrument adapters. It checks gain consistency, phase availability, reference coverage, and known prior correction;
+then stages input snapshots, data exports, a plot, an HTML report, and a hashed JSON manifest in a new directory.
+[Integration tests](tests/test_offline_analysis.py) cover numerical results, metadata roundtrips, failure cleanup,
+existing-output protection, and a real CLI subprocess that does not import Tkinter or PyVISA.
+
+### 4. Operator state is part of the system design
+
+The console distinguishes `live`, `loaded`, and `fixture` data sources and allows only one mutating operation at a
+time. Connection, file analysis, and export run outside the Tk event loop. A stopped or failed sweep retains valid
+points; cleanup completes before auto-save. File analysis uses immutable input snapshots, and failed exports roll
+back newly created files without overwriting existing results. Warnings remain in a bounded history and shutdown
+diagnostics persist locally. See the
 [operator guide](docs/operator_guide.md) for the complete workflow.
 
-### 4. Distribution is tested as a workflow
+### 5. Distribution is tested as a workflow
 
 [GitHub Actions](.github/workflows/ci.yml) runs the hardware-free suite on Linux, macOS, and Windows, checks the code
 with Ruff, and builds a Windows PyInstaller one-folder artifact. The bundled
@@ -121,6 +139,18 @@ that is not supported by the repository.
 
 ## Reproduce
 
+### Analyze measurement files without hardware
+
+```bash
+python -m pip install -e .
+auto-load-off-test analyze demo_data/hyperframe_simulated_fixture.mat --output __data__/analysis-demo
+```
+
+Open `__data__/analysis-demo/report.html` to inspect the data, plot, processing notes, and input hashes. The command
+runs without Tkinter or instrument connections and produces MAT/CSV/TXT, PNG, HTML, and a JSON manifest. Optional
+reference correction has explicit coverage and phase checks. See the [offline analysis guide](docs/offline_analysis.md)
+for raw-fixture reconstruction, input formats, reproducibility assumptions, and error behavior.
+
 ### Install and launch
 
 ```bash
@@ -134,8 +164,10 @@ python src/main.py
 On Windows, activate the environment with `.venv\Scripts\activate` before installing. The installed console entry
 point is also available as `auto-load-off-test`.
 
-To inspect the workflow without instruments, launch the application and select **Load Demo Fixture**. The console
-will retain the simulated/no-hardware label throughout replay and export.
+To inspect the workflow without instruments, select **Load Demo Fixture**, then **Replay Fixture**. Stop partway
+or choose 1x / 2x / 4x playback. In **Analysis**, choose `raw` + `complex` to reconstruct the fixture using its bundled
+reference, then **Apply Analysis**. **Reset Analysis** restores the original file snapshot. **Export Report** saves
+the displayed result and its reproducibility record to a new directory. The no-hardware label remains explicit.
 
 ### Run the hardware-free checks
 
@@ -163,17 +195,26 @@ termination, coupling, transport, and validation status are defined in the
 
 ## Data And Runtime Paths
 
-Saving a measurement can produce `*.mat`, `*.csv`, `*.txt`, and optional `*_gain.png` / `*_gain_db.png` plots.
-Exports preserve source, correction mode, point count, timestamp, and the simulated/live boundary when available.
+**Save Data** writes the displayed numeric result as MAT/CSV/TXT. **Export Report** adds a PNG, HTML report, input
+snapshots, and a SHA-256 manifest. Neither action silently replaces existing output. Imported/fixture data is not
+exported with unrelated instrument settings from the setup form.
 
-By default, settings and auto-save data are rooted at the launch directory:
+Settings, automatic saves, and rotating diagnostic logs live under a stable per-user application-data root:
+
+| OS | Root |
+| --- | --- |
+| macOS | `~/Library/Application Support/Auto-Load-off-Test` |
+| Windows | `%APPDATA%/Auto-Load-off-Test` |
+| Linux | `$XDG_DATA_HOME/Auto-Load-off-Test` or `~/.local/share/Auto-Load-off-Test` |
 
 ```text
 __config__/settings.json
 __data__/measurement/
+__data__/logs/sweep-events.jsonl
 ```
 
-Set `AUTO_LOAD_OFF_TEST_ROOT` to an explicit writable directory for packaged installations or lab workstations. See
+`AUTO_LOAD_OFF_TEST_ROOT` overrides this root. Existing cwd-based settings are not silently migrated. Bundled demo
+resources resolve independently, including after a wheel install. See
 the [packaging guide](docs/packaging.md) for Windows prerequisites and the no-hardware smoke checklist.
 
 ## Technical Documentation

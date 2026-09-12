@@ -20,7 +20,7 @@ The real Tk operator console owns this label; no external overlay is required.
 
 The repository contains a real-window capture path:
 
-- `scripts/capture_operator_console_point_replay.py`: primary 0/72 -> 72/72 replay.
+- `scripts/capture_operator_console_point_replay.py`: controller-driven 0/72 -> 72/72 replay.
 - `scripts/capture_operator_console_demo.py`: shorter immediate-load capture helper and shared macOS capture code.
 - `docs/images/auto-load-off-test-point-replay-demo.mp4`: current primary video.
 - `docs/images/auto-load-off-test-point-replay-demo.png`: current poster.
@@ -47,8 +47,8 @@ The point-replay helper uses only these deterministic local inputs:
    - Keep the wording clear that this is fixture replay, not connected instruments.
 
 3. Fixture replay frame
-   - Activate `Load Demo Fixture` in the real Tk window.
-   - Feed each point through the existing result/view-model plotting path.
+   - Activate `Load Demo Fixture` through the normal controller callback in the real Tk window.
+   - Activate `Replay Fixture` through the normal controller callback; the controller schedules each point.
    - Show progress, point count, and latest frequency changing with the curve.
 
 4. Gain and phase frame
@@ -57,8 +57,7 @@ The point-replay helper uses only these deterministic local inputs:
    - Optional: show raw/reference/corrected fields from the CSV as a small data callout.
 
 5. Export/data frame
-   - Run a real MAT/CSV/TXT export into the capture's temporary directory.
-   - Show the resulting artifact receipt without presenting it as a hardware measurement.
+   - Keep the final source receipt and point count visible without presenting the result as a hardware measurement.
 
 6. README context outside the video
    - Link the validation matrix and architecture notes next to the capture.
@@ -82,11 +81,13 @@ The point-replay helper uses only these deterministic local inputs:
 3. Run the point replay:
 
    ```bash
-   PYTHONPATH=src python scripts/capture_operator_console_point_replay.py
+   PYTHONPATH=src python scripts/capture_operator_console_point_replay.py \
+     --output-dir docs/images/desktop-workflow-replay
    ```
 
 4. Inspect early, middle, and final frames. Confirm 0/few points, a partial curve, 72/72, source badge, neutral
-   hardware state, reference coverage receipt, and the final export receipt.
+   hardware state, and the final source receipt. The helper initializes the normal controller and uses a temporary
+   runtime root, so user settings and production data are not touched.
 
 5. Verify the poster/MP4 paths and keep the YouTube description explicit about simulated no-hardware data.
 
@@ -99,5 +100,6 @@ The point-replay helper uses only these deterministic local inputs:
 
 ## Implementation Boundary
 
-Capture automation remains under `scripts/`. It consumes checked-in fixture files and updates the existing
-Tk view-model/plot path. It never constructs production instrument ports or presents the temporary export as live data.
+Capture automation remains under `scripts/`. It consumes checked-in fixture files, presses the normal controller-bound
+Tk buttons, and updates the existing replay/view-model/plot path. It never constructs production instrument ports or
+overwrites the primary checked-in MP4/poster by default.

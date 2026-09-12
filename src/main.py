@@ -1,14 +1,43 @@
 from __future__ import annotations
 
 import json
-import os
+import argparse
 from pathlib import Path
 import sys
 import traceback
 
 
-def main() -> int:
-    if "--package-smoke" in sys.argv[1:]:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="AWG/oscilloscope desktop console and offline measurement analysis")
+    parser.add_argument("--package-smoke", action="store_true", help="Run the bundled no-hardware packaging check")
+    commands = parser.add_subparsers(dest="command")
+    analyze = commands.add_parser("analyze", help="Analyze MAT/CSV files without Tk or instruments")
+    analyze.add_argument("input", type=Path)
+    analyze.add_argument("--output", required=True, type=Path, help="New output directory (must not exist)")
+    analyze.add_argument("--reference", type=Path, help="Reference MAT file")
+    analyze.add_argument("--correction", choices=("none", "magnitude", "complex"), default="none")
+    analyze.add_argument("--coverage", choices=("reject", "clamp"), default="reject")
+    analyze.add_argument("--dataset", choices=("canonical", "raw"), default="canonical")
+    args = parser.parse_args(argv)
+    if args.package_smoke and args.command:
+        parser.error("--package-smoke cannot be combined with an analysis command")
+    if args.command == "analyze":
+        try:
+            from app.application.use_cases.analyze_measurement import AnalysisOptions
+            from app.offline import run_offline_analysis
+
+            result = run_offline_analysis(
+                args.input, args.output, reference_path=args.reference,
+                options=AnalysisOptions(args.correction, args.coverage, args.dataset),
+            )
+        except Exception as exc:
+            print(json.dumps({"status": "failed", "error_type": type(exc).__name__,
+                              "error": str(exc), "live_hardware_used": False}), file=sys.stderr)
+            return 1
+        print(json.dumps(result, sort_keys=True))
+        return 0
+
+    if args.package_smoke:
         try:
             from app.demo.package_smoke import run_package_smoke
 
@@ -25,8 +54,9 @@ def main() -> int:
 
 
 def _write_package_smoke_failure(exc: Exception) -> None:
-    root = Path(os.environ.get("AUTO_LOAD_OFF_TEST_ROOT", Path.cwd())).resolve()
-    receipt_path = root / "__data__" / "package_smoke_receipt.json"
+    from app.runtime.paths import AppPaths
+
+    receipt_path = AppPaths.default().data_dir / "package_smoke_receipt.json"
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
     receipt_path.write_text(
         json.dumps(

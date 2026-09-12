@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import sys
 from typing import Any
 
 import numpy as np
@@ -14,6 +13,7 @@ from app.infrastructure.persistence.measurement_exporter import MeasurementExpor
 from app.infrastructure.persistence.measurement_loader import MeasurementLoader
 from app.infrastructure.persistence.reference_repo_mat import MatReferenceRepository
 from app.runtime.paths import AppPaths
+from app.runtime.resources import bundled_resource_root
 
 
 VALIDATION_BOUNDARY = "No hardware - simulated fixture; not live hardware validation"
@@ -78,10 +78,3 @@ def run_package_smoke(
     }
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return receipt_path
-
-
-def bundled_resource_root() -> Path:
-    frozen_root = getattr(sys, "_MEIPASS", None)
-    if frozen_root:
-        return Path(frozen_root)
-    return Path(__file__).resolve().parents[3]

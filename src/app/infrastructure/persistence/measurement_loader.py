@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +76,8 @@ class MeasurementLoader:
         if not rows:
             raise DataValidationError("Measurement CSV has no data rows")
 
+        _validate_csv_provenance(rows, fieldnames)
+
         freq = np.array(
             [_required_float(row, "freq_hz", row_number) for row_number, row in enumerate(rows, start=2)],
             dtype=float,
@@ -111,10 +114,23 @@ class MeasurementLoader:
             payload["gain_db"] = gain_db
         if phase is not None:
             payload["phase_deg"] = phase
-        for key in ("source", "demo_label", "correction_mode", "validation_boundary"):
+        for key in (
+            "source",
+            "demo_label",
+            "correction_mode",
+            "validation_boundary",
+            "reference_correction",
+            "analysis_id",
+            "dataset",
+        ):
             value = (rows[0].get(key) or "").strip()
             if value:
                 payload[key] = value
+        if payload.get("source") == "mock_fixture" and "gain_db_corrected" in fieldnames:
+            payload["gain_db_corrected"] = np.array(
+                [_required_float(row, "gain_db_corrected", number) for number, row in enumerate(rows, start=2)],
+                dtype=float,
+            )
         return payload, freq, gain_linear, gain_db, phase
 
     def _get_array(
@@ -168,9 +184,66 @@ def _result_meta(payload: dict[str, Any], *, path: Path, point_count: int) -> di
         value = _payload_text(payload.get(key))
         if value:
             meta[key] = value
+    for key in ("reference_correction", "analysis_id", "dataset"):
+        value = _payload_text(payload.get(key))
+        if value:
+            meta[key] = value
+
+    # MAT exports carry processing provenance inside metadata_json.result. The
+    # file path and reconstructed point count above are authoritative.
+    result_meta = _mat_result_meta(payload)
+    for key in ("source", "demo_label", "validation_boundary", "reference_correction", "analysis_id", "dataset"):
+        if key not in result_meta:
+            continue
+        value = result_meta[key]
+        if not isinstance(value, str) or not value.strip():
+            raise DataValidationError(f"MAT result metadata {key!r} must be non-empty text")
+        if key in meta and meta[key] != value:
+            raise DataValidationError(f"MAT provenance field {key!r} conflicts with metadata_json.result")
+    for key, value in result_meta.items():
+        if key not in {"source_file", "point_count"}:
+            meta[key] = value
     if meta.get("source") == "mock_fixture":
         meta.setdefault("validation_boundary", "No hardware - simulated fixture; not live hardware validation")
     return meta
+
+
+def _mat_result_meta(payload: dict[str, Any]) -> dict[str, Any]:
+    raw_metadata = payload.get("metadata_json")
+    if raw_metadata is None:
+        return {}
+    text = _payload_text(raw_metadata)
+    if not text:
+        raise DataValidationError("MAT metadata_json is malformed: expected a JSON object")
+    try:
+        metadata = json.loads(text)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise DataValidationError("MAT metadata_json is malformed JSON") from exc
+    if not isinstance(metadata, dict):
+        raise DataValidationError("MAT metadata_json is malformed: expected a JSON object")
+    if "result" not in metadata:
+        return {}
+    result = metadata["result"]
+    if not isinstance(result, dict):
+        raise DataValidationError("MAT metadata_json.result is malformed: expected a JSON object")
+    return result
+
+
+def _validate_csv_provenance(rows: list[dict[str, str | None]], fieldnames: set[str]) -> None:
+    for key in (
+        "source",
+        "demo_label",
+        "correction_mode",
+        "validation_boundary",
+        "reference_correction",
+        "analysis_id",
+        "dataset",
+    ):
+        if key not in fieldnames:
+            continue
+        values = [(row.get(key) or "").strip() for row in rows]
+        if any(value != values[0] for value in values[1:]):
+            raise DataValidationError(f"CSV provenance column {key!r} has conflicting values across rows")
 
 
 def _payload_text(value: object) -> str:
