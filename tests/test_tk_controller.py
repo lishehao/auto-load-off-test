@@ -102,7 +102,9 @@ class ControllerTests(unittest.TestCase):
         )
         self.addCleanup(self.controller._workspace.close)
         self.addCleanup(self.controller._event_log.close)
-        self.warning = self.enterContext(patch("app.presentation.tk.controller.dialogs.show_warning"))
+        warning_patcher = patch("app.presentation.tk.controller.dialogs.show_warning")
+        self.warning = warning_patcher.start()
+        self.addCleanup(warning_patcher.stop)
 
     def settle(self):
         deadline = time.monotonic() + 10
