@@ -501,7 +501,7 @@ class instOSC_DS1104(InstrumentBase):
     
     def __init__(self):
         super().__init__("osc")
-        self.VisaAddress="USB0::0x05E6::0x2450::04542396::INSTR"
+        self.VisaAddress=""  # set from instrument discovery or saved settings
         
     def callback_after_open(self):
         self.set_visa_timeout_value(10000)
@@ -1506,7 +1506,7 @@ class instAWG_DG852(instAWG_DG4102):
     
     def __init__(self):
         super().__init__()
-        self.VisaAddress="USB::0x1AB1::0x0646::DG8R262900659::INSTR"
+        self.VisaAddress=""  # set from instrument discovery or saved settings
 
     def set_reset(self):
         self.x_write(["*RST","$WAIT=1500$", "*OPC?", ":OUTP1:LOAD 50",":OUTP2:LOAD 50"])
