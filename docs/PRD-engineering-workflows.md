@@ -51,11 +51,10 @@ Acceptance criteria for this slice:
 
 - A student or researcher reviewing exported measurements without access to the original lab workstation.
 - A developer or reviewer reproducing a result and inspecting processing decisions from a clean checkout.
-- A graduate admissions reviewer evaluating quantitative reasoning, experimental reproducibility, and limitations.
 - An internship interviewer evaluating API design, failure handling, regression tests, and maintainable code.
 
 The user confirmed the internship focus on 2026-09-12: software engineering, Python, and backend roles.
-No admissions or hiring outcome is promised. No current real-instrument access is assumed.
+No hiring outcome is promised. No current real-instrument access is assumed.
 
 ## 6. Value
 

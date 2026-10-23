@@ -26,6 +26,8 @@ Auto-Load-off-Test refactors a tightly coupled lab script into a testable deskto
 operator UI, use-case orchestration, sweep and signal-processing logic, persistence, and model-specific instrument
 side effects. This makes the core workflow reproducible without requiring access to a physical lab bench.
 
+The 2025 internship version is tag [v0.1.0](https://github.com/lishehao/auto-load-off-test/tree/v0.1.0). The main branch is a 2026 restructuring written by a coding agent to my specification.
+
 > **Validation boundary:** automated tests and demonstration evidence are hardware-free. Production adapter paths are inspectable, but
 > this repository does not claim current live AWG/oscilloscope, metrology, or production-safety validation.
 

@@ -75,11 +75,10 @@ MAT/CSV/TXT results and two input snapshots. Generated files remain under ignore
   directory; network filesystem transactions and power-loss durability are not promised.
 - Input snapshots preserve original file content. External files may contain private metadata; inspect before sharing.
 - Source claims and simulation labels are file-supplied. Software cannot independently certify acquisition origin,
-  calibration traceability, electrical safety, or admission/hiring outcomes.
+  calibration traceability, electrical safety, or hiring outcomes.
 
 ## Evidence Use
 
-For graduate applications: discuss numerical assumptions, explicit calibration limits and reproducible analysis.
 For software engineering/Python/backend internships: demonstrate the application boundary, CLI contract, metadata
 roundtrip, failure cleanup and integration tests. Cite this as local implementation evidence until it is published
 and remote checks are separately verified.

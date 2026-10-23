@@ -1,6 +1,6 @@
 # Hyperframe Demo Fixture
 
-This demo path is for application-material capture when AWG/oscilloscope hardware is not connected.
+This demo path is for demo capture when AWG/oscilloscope hardware is not connected.
 
 Visible label to use in the Hyperframe capture:
 

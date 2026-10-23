@@ -4,7 +4,7 @@
 
 On 2026-09-12 the user requested goal-mode improvement of both the interface and underlying application layers.
 The target remains the Python/Tkinter desktop tool, with hardware-free usefulness and inspectable evidence for
-graduate applications and software engineering/Python/backend internships. No Web service, new instrument model,
+software engineering/Python/backend internships. No Web service, new instrument model,
 framework migration, live bench claim, or automatic publication is included.
 
 The user subsequently approved a local Git commit and selected macOS as the UI acceptance target.
