@@ -5,8 +5,8 @@ from pathlib import Path
 
 
 FIXTURE_DIR_NAME = "demo_data"
-MEASUREMENT_FIXTURE_NAME = "hyperframe_simulated_fixture.mat"
-REFERENCE_FIXTURE_NAME = "hyperframe_reference_fixture.mat"
+MEASUREMENT_FIXTURE_NAME = "simulated_sweep_fixture.mat"
+REFERENCE_FIXTURE_NAME = "simulated_reference_fixture.mat"
 
 
 def bundled_resource_root() -> Path:

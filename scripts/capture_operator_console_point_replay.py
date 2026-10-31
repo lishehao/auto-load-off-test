@@ -11,8 +11,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 DEFAULT_OUTPUT_DIR = ROOT / "docs" / "images" / "desktop-workflow-replay"
-FIXTURE = ROOT / "demo_data" / "hyperframe_simulated_fixture.mat"
-REFERENCE = ROOT / "demo_data" / "hyperframe_reference_fixture.mat"
+FIXTURE = ROOT / "demo_data" / "simulated_sweep_fixture.mat"
+REFERENCE = ROOT / "demo_data" / "simulated_reference_fixture.mat"
 FRAME_RATE = 12
 DEMO_SIZE = "1440x810+20+40"
 
@@ -20,7 +20,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from app.bootstrap import build_desktop_app  # noqa: E402
-from app.demo.hyperframe_fixture import build_fixture_settings  # noqa: E402
+from app.demo.simulated_fixture import build_fixture_settings  # noqa: E402
 from app.presentation.tk.mapper import settings_to_vm  # noqa: E402
 from app.runtime.paths import AppPaths  # noqa: E402
 
@@ -99,7 +99,7 @@ class ControllerReplayCaptureSession:
         # This is an honest source receipt before data is loaded, not a fabricated
         # measurement. The controller still owns every data transition below.
         self.vm.source_mode.set("fixture")
-        self.vm.data_source_text.set("Fixture replay ready · hyperframe_simulated_fixture.mat")
+        self.vm.data_source_text.set("Fixture replay ready · simulated_sweep_fixture.mat")
         self.vm.fixture_badge_text.set("No hardware - simulated fixture")
         self.vm.validation_receipt_text.set("Ready for simulated fixture replay; not live hardware validation")
         self.vm.status_text.set("Ready to load simulated fixture (no hardware)")

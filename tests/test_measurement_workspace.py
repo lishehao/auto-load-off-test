@@ -51,7 +51,7 @@ class MeasurementWorkspaceTests(unittest.TestCase):
                 self.assertEqual(len(MeasurementLoader().load(str(snapshot)).result.points), 2)
 
     def test_reference_is_loaded_from_snapshot_after_original_is_deleted(self) -> None:
-        source = ROOT / "demo_data" / "hyperframe_reference_fixture.mat"
+        source = ROOT / "demo_data" / "simulated_reference_fixture.mat"
         with tempfile.TemporaryDirectory() as td:
             original = Path(td) / source.name
             original.write_bytes(source.read_bytes())
@@ -67,7 +67,7 @@ class MeasurementWorkspaceTests(unittest.TestCase):
                 self.assertTrue(np.all(np.isfinite(values)))
 
     def test_snapshot_result_is_stable_mat_in_same_workspace(self) -> None:
-        source = ROOT / "demo_data" / "hyperframe_simulated_fixture.mat"
+        source = ROOT / "demo_data" / "simulated_sweep_fixture.mat"
         repository = MatCsvMeasurementRepository()
         loaded = LoadMeasurementUseCase(repository).execute(str(source))
         partial = SweepResult(points=loaded.result.points[:3], meta=dict(loaded.result.meta))

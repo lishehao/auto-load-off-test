@@ -225,9 +225,9 @@ def write_fixture(output_dir: Path) -> dict[str, Path]:
     measurement_payload = build_measurement_payload(curves)
     reference_payload = build_reference_payload(curves)
 
-    measurement_base = output_dir / "hyperframe_simulated_fixture"
-    reference_mat = output_dir / "hyperframe_reference_fixture.mat"
-    metadata_json = output_dir / "hyperframe_simulated_fixture_metadata.json"
+    measurement_base = output_dir / "simulated_sweep_fixture"
+    reference_mat = output_dir / "simulated_reference_fixture.mat"
+    metadata_json = output_dir / "simulated_sweep_fixture_metadata.json"
 
     mat_path = measurement_base.with_suffix(".mat")
     csv_path = measurement_base.with_suffix(".csv")
@@ -249,7 +249,7 @@ def write_fixture(output_dir: Path) -> dict[str, Path]:
                 "sweep_stop_hz": STOP_HZ,
                 "correction_mode": measurement_payload["correction_mode"],
                 "trigger_mode": measurement_payload["trigger_mode"],
-                "generated_from": "src/app/demo/hyperframe_fixture.py",
+                "generated_from": "src/app/demo/simulated_fixture.py",
             },
             indent=2,
             sort_keys=True,

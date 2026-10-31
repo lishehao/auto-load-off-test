@@ -11,7 +11,7 @@ PACKAGE_FIXTURE_DIR = SRC / "app" / "runtime" / "demo_data"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from app.demo.hyperframe_fixture import write_fixture  # noqa: E402
+from app.demo.simulated_fixture import write_fixture  # noqa: E402
 
 
 def main() -> None:

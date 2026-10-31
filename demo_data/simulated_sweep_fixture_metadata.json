@@ -1,7 +1,7 @@
 {
   "correction_mode": "dual",
   "demo_label": "Simulated no-hardware demo fixture",
-  "generated_from": "src/app/demo/hyperframe_fixture.py",
+  "generated_from": "src/app/demo/simulated_fixture.py",
   "point_count": 72,
   "source": "mock_fixture",
   "sweep_start_hz": 1000.0,

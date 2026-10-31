@@ -11,7 +11,7 @@ from scipy.io import loadmat
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from app.demo.hyperframe_fixture import (  # noqa: E402
+from app.demo.simulated_fixture import (  # noqa: E402
     DEMO_LABEL,
     POINT_COUNT,
     SOURCE,
@@ -23,7 +23,7 @@ from app.infrastructure.persistence.measurement_loader import MeasurementLoader 
 from app.infrastructure.persistence.reference_repo_mat import MatReferenceRepository  # noqa: E402
 
 
-class HyperframeFixtureTests(unittest.TestCase):
+class SimulatedFixtureTests(unittest.TestCase):
     def test_fixture_payload_has_demo_metadata_and_non_smooth_curve(self) -> None:
         curves = build_fixture_curves()
         payload = build_measurement_payload(curves)

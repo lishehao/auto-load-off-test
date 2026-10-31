@@ -141,7 +141,7 @@ class WorkflowReceiptTests(unittest.TestCase):
             artifacts=artifacts,
             settings=settings,
             result=result,
-            source_text="Fixture replay · hyperframe_simulated_fixture.mat",
+            source_text="Fixture replay · simulated_sweep_fixture.mat",
             fixture_badge_text="No hardware - simulated fixture",
             saved_at=datetime(2026, 6, 2, 9, 30, 0),
         )
@@ -185,7 +185,7 @@ class WorkflowReceiptTests(unittest.TestCase):
 
         handler.set_fixture_source(
             label="Simulated no-hardware demo fixture",
-            path_name="hyperframe_simulated_fixture.mat",
+            path_name="simulated_sweep_fixture.mat",
         )
 
         self.assertEqual(vm.source_mode.get(), "fixture")

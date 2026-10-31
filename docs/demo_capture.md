@@ -1,4 +1,4 @@
-# Hyperframe Fixture Replay Capture Plan
+# Fixture Replay Capture Plan
 
 This plan documents the reproducible deterministic fixture replay. It does not imply live hardware validation.
 
@@ -27,11 +27,11 @@ The repository contains a real-window capture path:
 
 The point-replay helper uses only these deterministic local inputs:
 
-- `demo_data/hyperframe_simulated_fixture.mat`
-- `demo_data/hyperframe_simulated_fixture.csv`
-- `demo_data/hyperframe_simulated_fixture.txt`
-- `demo_data/hyperframe_reference_fixture.mat`
-- `demo_data/hyperframe_simulated_fixture_metadata.json`
+- `demo_data/simulated_sweep_fixture.mat`
+- `demo_data/simulated_sweep_fixture.csv`
+- `demo_data/simulated_sweep_fixture.txt`
+- `demo_data/simulated_reference_fixture.mat`
+- `demo_data/simulated_sweep_fixture_metadata.json`
 
 ## Capture Storyboard
 
@@ -69,7 +69,7 @@ The point-replay helper uses only these deterministic local inputs:
 1. Regenerate fixture data if needed:
 
    ```bash
-   python scripts/generate_hyperframe_fixture.py
+   python scripts/generate_simulated_fixture.py
    ```
 
 2. Install the macOS capture-only dependencies:

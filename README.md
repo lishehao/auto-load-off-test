@@ -145,7 +145,7 @@ that is not supported by the repository.
 
 ```bash
 python -m pip install -e .
-auto-load-off-test analyze demo_data/hyperframe_simulated_fixture.mat --output __data__/analysis-demo
+auto-load-off-test analyze demo_data/simulated_sweep_fixture.mat --output __data__/analysis-demo
 ```
 
 Open `__data__/analysis-demo/report.html` to inspect the data, plot, processing notes, and input hashes. The command
@@ -230,7 +230,7 @@ the [packaging guide](docs/packaging.md) for Windows prerequisites and the no-ha
 | Stop behavior and operator responsibilities | [Safety Notes](docs/safety.md) |
 | Adding adapters, persistence, or UI behavior | [Extending The Application](docs/extending.md) |
 | Windows one-folder build and prerequisites | [Packaging](docs/packaging.md) |
-| Deterministic fixture design and provenance | [Demo Fixture](docs/hyperframe_demo.md) / [Demo Data](demo_data/README.md) |
+| Deterministic fixture design and provenance | [Demo Fixture](docs/demo_fixture.md) / [Demo Data](demo_data/README.md) |
 
 ## Scope And Safety
 

@@ -76,7 +76,7 @@ auto-load-off-test analyze FIXTURE.mat --dataset raw --reference REF.mat --corre
 - `--correction`: `none` (default), `magnitude`, or `complex`; a correction requires a reference and vice versa.
 - `--coverage`: `reject` (default) or explicit `clamp`; count/report frequencies outside the reference interval.
 - `--dataset`: `canonical` (default) or `raw`. Raw selection requires explicit `gain_db_raw`/`gain_linear_raw` (or
-  legacy `gain_raw`) fields in MAT; it never falls back to canonical data. Hyperframe canonical arrays are already
+  legacy `gain_raw`) fields in MAT; it never falls back to canonical data. Fixture canonical arrays are already
   corrected, so another reference correction requires selecting raw. Acquisition mode `dual` alone is not used to
   infer prior file-reference correction.
 - Complex correction requires measured phase for every input point and phase in the reference.

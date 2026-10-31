@@ -106,7 +106,7 @@ class AnalyzeMeasurementUseCase:
 def _select_measurement(loaded: LoadedMeasurement, dataset: str) -> SweepResult:
     meta = dict(loaded.result.meta)
     if dataset == "canonical":
-        # The checked-in Hyperframe fixture declares corrected canonical arrays separately from raw arrays.
+        # The checked-in demo fixture declares corrected canonical arrays separately from raw arrays.
         if meta.get("source") == "mock_fixture" and "gain_db_corrected" in loaded.raw_payload:
             meta.setdefault("reference_correction", "fixture_corrected")
         return SweepResult([replace(point) for point in loaded.result.points], meta)

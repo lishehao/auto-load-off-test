@@ -80,7 +80,7 @@ under that root.
 Old cwd-based settings are not moved or deleted. The two deterministic MAT resources are
 bundled as package data for wheel installs and as data files in the frozen build. They are
 resolved independently of the writable runtime root. Regenerate both source and packaged
-copies with `scripts/generate_hyperframe_fixture.py`; tests check they stay identical.
+copies with `scripts/generate_simulated_fixture.py`; tests check they stay identical.
 
 The wheel includes application code and fixtures, not Tcl/Tk itself. The desktop entry needs
 a Python distribution with working Tk support; the offline `analyze` and `--package-smoke`
@@ -106,7 +106,7 @@ Complete this manual UI smoke before using a build as visual demo evidence:
 2. Confirm the operator console opens without a Python traceback.
 3. Click `Load Demo Fixture`.
 4. Confirm the plot is visible and labeled `No hardware - simulated fixture`.
-5. Confirm the source receipt names `hyperframe_simulated_fixture.mat`.
+5. Confirm the source receipt names `simulated_sweep_fixture.mat`.
 6. Click `Replay Fixture`, stop partway, then replay again; confirm partial and complete counts.
 7. In Analysis, choose raw / complex with the bundled reference and apply explicitly.
 8. Click `Save Data` and `Export Report`; verify numeric files and a new report directory.

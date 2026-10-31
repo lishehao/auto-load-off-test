@@ -10,7 +10,7 @@ From a checkout with Python 3.10 or newer:
 
 ```bash
 python -m pip install -e .
-auto-load-off-test analyze demo_data/hyperframe_simulated_fixture.mat --output __data__/analysis-demo
+auto-load-off-test analyze demo_data/simulated_sweep_fixture.mat --output __data__/analysis-demo
 ```
 
 Open `__data__/analysis-demo/report.html`. The file is self-contained within its result directory and requires no
@@ -20,9 +20,9 @@ The checked-in fixture is simulated and already contains corrected canonical cur
 the corrected output from its raw arrays and reference:
 
 ```bash
-auto-load-off-test analyze demo_data/hyperframe_simulated_fixture.mat \
+auto-load-off-test analyze demo_data/simulated_sweep_fixture.mat \
   --dataset raw \
-  --reference demo_data/hyperframe_reference_fixture.mat \
+  --reference demo_data/simulated_reference_fixture.mat \
   --correction complex \
   --output __data__/analysis-corrected
 ```

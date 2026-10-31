@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from app.application.dto import SaveTarget
 from app.application.services.export_receipts import build_export_receipt
-from app.demo.hyperframe_fixture import POINT_COUNT, build_fixture_settings
+from app.demo.simulated_fixture import POINT_COUNT, build_fixture_settings
 from app.domain.calibration import apply_reference_to_point, build_reference_interpolator
 from app.domain.models import SweepPoint, SweepResult
 from app.infrastructure.persistence.measurement_exporter import MeasurementExporter
@@ -24,8 +24,8 @@ from app.infrastructure.persistence.reference_repo_mat import MatReferenceReposi
 class HardwareFreeWorkflowTests(unittest.TestCase):
     def test_fixture_reference_correction_export_and_reload_end_to_end(self) -> None:
         demo_dir = Path(__file__).resolve().parents[1] / "demo_data"
-        fixture_path = demo_dir / "hyperframe_simulated_fixture.mat"
-        reference_path = demo_dir / "hyperframe_reference_fixture.mat"
+        fixture_path = demo_dir / "simulated_sweep_fixture.mat"
+        reference_path = demo_dir / "simulated_reference_fixture.mat"
 
         loaded = MeasurementLoader().load(str(fixture_path))
         reference = MatReferenceRepository().load_reference(str(reference_path))
@@ -89,7 +89,7 @@ class HardwareFreeWorkflowTests(unittest.TestCase):
                 artifacts=artifacts,
                 settings=settings,
                 result=corrected,
-                source_text="Fixture replay · hyperframe_simulated_fixture.mat",
+                source_text="Fixture replay · simulated_sweep_fixture.mat",
                 fixture_badge_text="No hardware - simulated fixture",
             )
 

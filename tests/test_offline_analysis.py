@@ -81,7 +81,7 @@ class OfflineAnalysisTests(unittest.TestCase):
         reference = ReferenceCurve(np.array([1e3, 1e6]), np.zeros(2), np.zeros(2))
         for extension in ("mat", "csv"):
             with self.subTest(extension=extension):
-                loaded = MeasurementLoader().load(str(ROOT / f"demo_data/hyperframe_simulated_fixture.{extension}"))
+                loaded = MeasurementLoader().load(str(ROOT / f"demo_data/simulated_sweep_fixture.{extension}"))
                 with self.assertRaisesRegex(DataValidationError, "already reference-corrected"):
                     AnalyzeMeasurementUseCase().execute(loaded, reference=reference, options=AnalysisOptions("complex"))
                 analysis = AnalyzeMeasurementUseCase().execute(loaded)
@@ -94,7 +94,7 @@ class OfflineAnalysisTests(unittest.TestCase):
     def test_csv_fixture_passthrough_preserves_correction_guard_on_reload(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             output = Path(td) / "analysis"
-            run_offline_analysis(ROOT / "demo_data/hyperframe_simulated_fixture.csv", output)
+            run_offline_analysis(ROOT / "demo_data/simulated_sweep_fixture.csv", output)
             for extension in ("mat", "csv"):
                 loaded = MeasurementLoader().load(str(output / f"measurement.{extension}"))
                 self.assertEqual(loaded.result.meta["reference_correction"], "fixture_corrected")
@@ -105,8 +105,8 @@ class OfflineAnalysisTests(unittest.TestCase):
                     )
 
     def test_full_fixture_bundle_matches_expected_and_hashes_snapshot(self) -> None:
-        fixture = ROOT / "demo_data/hyperframe_simulated_fixture.mat"
-        reference = ROOT / "demo_data/hyperframe_reference_fixture.mat"
+        fixture = ROOT / "demo_data/simulated_sweep_fixture.mat"
+        reference = ROOT / "demo_data/simulated_reference_fixture.mat"
         expected = loadmat(fixture)
         with tempfile.TemporaryDirectory() as td:
             output = Path(td) / "analysis"
@@ -140,14 +140,14 @@ class OfflineAnalysisTests(unittest.TestCase):
             self.assertNotIn(str(ROOT), (output / "report.html").read_text())
 
     def test_existing_output_is_not_overwritten_even_when_empty(self) -> None:
-        fixture = ROOT / "demo_data/hyperframe_simulated_fixture.mat"
+        fixture = ROOT / "demo_data/simulated_sweep_fixture.mat"
         with tempfile.TemporaryDirectory() as td:
             with self.assertRaises(FileExistsError):
                 run_offline_analysis(fixture, Path(td))
             self.assertEqual(list(Path(td).iterdir()), [])
 
     def test_failed_bundle_has_no_output_or_lock(self) -> None:
-        fixture = ROOT / "demo_data/hyperframe_simulated_fixture.mat"
+        fixture = ROOT / "demo_data/simulated_sweep_fixture.mat"
         with tempfile.TemporaryDirectory() as td:
             output = Path(td) / "analysis"
             with patch("app.infrastructure.persistence.analysis_bundle._write_plot", side_effect=OSError("disk full")):

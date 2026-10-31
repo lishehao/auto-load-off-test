@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 
 from app.application.dto import SaveTarget
-from app.demo.hyperframe_fixture import POINT_COUNT, SOURCE, build_fixture_settings
+from app.demo.simulated_fixture import POINT_COUNT, SOURCE, build_fixture_settings
 from app.domain.calibration import build_reference_interpolator
 from app.infrastructure.persistence.measurement_exporter import MeasurementExporter
 from app.infrastructure.persistence.measurement_loader import MeasurementLoader
@@ -28,8 +28,8 @@ def run_package_smoke(
     """Exercise bundled fixture IO and export without opening Tk or VISA resources."""
     resources = (resource_root or bundled_resource_root()).resolve()
     paths = AppPaths.from_root(runtime_root) if runtime_root is not None else AppPaths.default()
-    fixture_path = resources / "demo_data" / "hyperframe_simulated_fixture.mat"
-    reference_path = resources / "demo_data" / "hyperframe_reference_fixture.mat"
+    fixture_path = resources / "demo_data" / "simulated_sweep_fixture.mat"
+    reference_path = resources / "demo_data" / "simulated_reference_fixture.mat"
 
     loaded = MeasurementLoader().load(str(fixture_path))
     reference = MatReferenceRepository().load_reference(str(reference_path))

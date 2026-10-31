@@ -15,8 +15,8 @@ Current review assets:
 
 Capture these from the real Tk desktop app. Do not replace them with generated mockups, because the value of this project is that it controls a real lab workflow.
 
-For Hyperframe demo capture without instruments, use a visible label such as
-`No hardware - simulated fixture` when showing `demo_data/hyperframe_simulated_fixture.*`.
+For demo capture without instruments, use a visible label such as
+`No hardware - simulated fixture` when showing `demo_data/simulated_sweep_fixture.*`.
 This demonstrates the UI/data workflow but must not be described as live hardware validation.
 
 Install capture-only dependencies and run the primary helper:
