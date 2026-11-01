@@ -8,8 +8,10 @@ Current review assets:
   `docs/validation/desktop-workflows-2026-09-12.md`.
 
 - `sweep_result.png`: a completed or loaded sweep result. The current file is generated from `demo_data/Demo(2).mat`.
-- `auto-load-off-test-point-replay-demo.mp4`: real Tk operator console capture showing the
-  deterministic no-hardware fixture from 0/72 through 72/72, a loaded reference receipt, and a temporary export receipt.
+- `auto-load-off-test-point-replay-demo.mp4`: real Tk operator console capture (macOS, October 30, 2026) showing the
+  deterministic no-hardware fixture being loaded and replayed from 0/72 through 72/72, with the source receipt in view.
+  It does not show the reference or export receipts. In three frames of the recording the window appeared shifted
+  sideways and partly cut off; each of those frames was replaced with the frame before it. No other frame was edited.
 - `auto-load-off-test-point-replay-demo.png`: poster frame from the point-by-point replay capture.
 - `auto-load-off-test-demo-capture.mp4` and `.png`: older immediate-load capture retained for history/fallback.
 
