@@ -20,7 +20,9 @@ A Python/Tkinter bench program that steps a signal generator, captures each resp
 
 ## Demo
 
-[![Real Auto-Load-off-Test Tkinter operator console replay](docs/images/auto-load-off-test-point-replay-demo.png)](https://youtu.be/fYokRzNnm84)
+[![The real Tkinter operator console replaying the simulated 72-point fixture, then the HTML report the analyze command writes](docs/images/auto-load-off-test-loop.gif)](https://lishehao.github.io/projects/auto-load-off-test/)
+
+The loop above (no sound, no hardware) shows the real operator console replaying the simulated 72-point fixture, then the HTML report that `auto-load-off-test analyze` writes for the same fixture.
 
 <p align="center">
   <a href="https://youtu.be/fYokRzNnm84"><strong>Watch the operator console demo on YouTube</strong></a>
