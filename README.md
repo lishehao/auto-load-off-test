@@ -1,12 +1,6 @@
 <h1 align="center">Auto-Load-off-Test</h1>
 
-<p align="center">
-  <strong>Repeatable measurement workflows. Inspectable results. No lab required to explore.</strong>
-</p>
-
-<p align="center">
-  A Python/Tkinter workbench for sweep orchestration, gain/phase analysis, reference correction, and reproducible reports.
-</p>
+A Python/Tkinter bench program that steps a signal generator, captures each response on an oscilloscope, and computes gain and phase.
 
 <p align="center">
   <a href="https://github.com/lishehao/auto-load-off-test/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/lishehao/auto-load-off-test/actions/workflows/ci.yml/badge.svg"></a>
@@ -16,20 +10,13 @@
 
 <p align="center">
   <a href="#demo">Demo</a> &middot;
-  <a href="#engineering-evidence">Engineering Evidence</a> &middot;
-  <a href="#architecture">Architecture</a> &middot;
-  <a href="#reproduce">Reproduce</a> &middot;
-  <a href="docs/case_study.md">Case Study</a>
+  <a href="#why">Why</a> &middot;
+  <a href="#how-to-run">How to run</a> &middot;
+  <a href="#design-and-results">Design and results</a> &middot;
+  <a href="#limits">Limits</a> &middot;
+  <a href="#who-wrote-what">Who wrote what</a> &middot;
+  <a href="#license">License</a>
 </p>
-
-Auto-Load-off-Test refactors a tightly coupled lab script into a testable desktop application. The design separates
-operator UI, use-case orchestration, sweep and signal-processing logic, persistence, and model-specific instrument
-side effects. This makes the core workflow reproducible without requiring access to a physical lab bench.
-
-The 2025 internship version is tag [v0.1.0](https://github.com/lishehao/auto-load-off-test/tree/v0.1.0). The main branch is a 2026 restructuring written by a coding agent to my specification.
-
-> **Validation boundary:** automated tests and demonstration evidence are hardware-free. Production adapter paths are inspectable, but
-> this repository does not claim current live AWG/oscilloscope, metrology, or production-safety validation.
 
 ## Demo
 
@@ -43,71 +30,86 @@ The published walkthrough shows an earlier real Tkinter console revision replayi
 fixture, not a live acquisition. The [local MP4 fallback](docs/images/auto-load-off-test-point-replay-demo.mp4)
 is retained for offline viewing. Both keep **No hardware - simulated fixture** visible.
 
-### Current Desktop Workflow
-
 ![Current Tkinter analysis workspace, using a simulated fixture](docs/images/desktop-analysis-workspace.png)
 
-The current branch adds ordinary **Load Demo Fixture / Replay Fixture** actions, stop-and-restart playback,
-explicit **Apply / Reset Analysis**, and a reproducible **Export Report** workflow. These run through the same
-controller used by the application, without capture-only plot animation. The
+The current main branch adds **Load Demo Fixture / Replay Fixture**, stop and restart of playback, explicit
+**Apply / Reset Analysis**, and **Export Report**. These run through the same controller the application uses. The
 [local acceptance record](docs/validation/desktop-workflows-2026-09-12.md) separates verified behavior from
-unverified hardware and native file dialogs. **macOS is the UI acceptance target for this iteration**;
-Windows UI validation is outside this delivery scope, not implied by cross-platform tests or packaging checks.
+unverified hardware and native file dialogs.
 
-## Project At A Glance
+## Why
 
-| | |
-| --- | --- |
-| **Problem** | Manual generator/oscilloscope sweeps are repetitive, stateful, and easy to misconfigure. |
-| **Workflow** | Configure a sweep, acquire gain/phase, apply a reference, inspect progress and warnings, then export results. |
-| **Engineering approach** | Layered presentation, application, domain, persistence, and instrument-adapter boundaries. |
-| **Stack** | Python 3.10+, Tkinter/ttk, Matplotlib, NumPy, SciPy, PyVISA, PyInstaller. |
-| **Reproducible evidence** | Deterministic fixture/reference data, fake instrument ports, strict IO contracts, cross-platform CI, and a packaged Windows smoke. |
-| **Current boundary** | Software and no-hardware workflows are validated; connected instruments and electrical behavior are not. |
+Intalight is an ophthalmic-imaging company in Shanghai. Before this program, its hardware team ran each
+frequency-response measurement with Python scripts that were often edited by hand for that measurement. The 2025
+program replaced those scripts with one desktop tool: set up the generator and oscilloscope, run the sweep, and save
+gain and phase. The 2026 work on the main branch restructured that same program.
 
-## Engineering Evidence
+## How to run
 
-### 1. Isolated hardware side effects
+Start from a fresh clone (Python 3.10 or newer, with Tkinter):
 
-Application services depend on explicit [AWG/oscilloscope ports](src/app/application/ports/instruments.py), not on
-vendor commands. A [capability registry](src/app/domain/instrument_capabilities.py) defines model constraints, while
-the [adapter registry](src/app/infrastructure/instruments/adapter_registry.py) resolves production and fake paths.
-The original [`equips.py`](src/equips.py) module remains isolated as a legacy compatibility layer instead of being
-broadly rewritten without a physical regression bench.
+```bash
+git clone https://github.com/lishehao/auto-load-off-test.git
+cd auto-load-off-test
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
 
-### 2. Strict measurement and calibration contracts
+On Windows, activate the environment with `.venv\Scripts\activate` instead.
 
-[Boundary validation](src/app/domain/data_validation.py) rejects missing fields, length mismatches, non-finite gain,
-and non-positive, duplicate, or unsorted frequencies. The deterministic
-[end-to-end workflow test](tests/test_hardware_free_workflow.py) reconstructs corrected gain and phase from raw plus
-reference curves, compares expected values, exports MAT/CSV/TXT, reloads MAT/CSV, and verifies source metadata.
+Analyze the bundled demo measurement without hardware, Tkinter or an instrument connection:
 
-### 3. Reproducible analysis without a lab workstation
+```bash
+auto-load-off-test analyze demo_data/simulated_sweep_fixture.mat --output __data__/analysis-demo
+```
 
-The [offline analysis command](docs/offline_analysis.md) accepts MAT/CSV files independently of the desktop and
-instrument adapters. It checks gain consistency, phase availability, reference coverage, and known prior correction;
-then stages input snapshots, data exports, a plot, an HTML report, and a hashed JSON manifest in a new directory.
-[Integration tests](tests/test_offline_analysis.py) cover numerical results, metadata roundtrips, failure cleanup,
-existing-output protection, and a real CLI subprocess that does not import Tkinter or PyVISA.
+Open `__data__/analysis-demo/report.html` to see the data, plot, processing notes and input hashes. The output
+directory must not already exist. See the [offline analysis guide](docs/offline_analysis.md) for input formats,
+reference correction and error behavior.
 
-### 4. Operator state is part of the system design
+Launch the desktop UI:
 
-The console distinguishes `live`, `loaded`, and `fixture` data sources and allows only one mutating operation at a
-time. Connection, file analysis, and export run outside the Tk event loop. A stopped or failed sweep retains valid
-points; cleanup completes before auto-save. File analysis uses immutable input snapshots, and failed exports roll
-back newly created files without overwriting existing results. Warnings remain in a bounded history and shutdown
-diagnostics persist locally. See the
-[operator guide](docs/operator_guide.md) for the complete workflow.
+```bash
+python src/main.py
+```
 
-### 5. Distribution is tested as a workflow
+The installed `auto-load-off-test` command with no arguments also opens it. To try the workflow without
+instruments, select **Load Demo Fixture**, then **Replay Fixture**. The [operator guide](docs/operator_guide.md)
+covers setup, replay, live runs, correction and export.
 
-[GitHub Actions](.github/workflows/ci.yml) runs the hardware-free suite on Linux, macOS, and Windows, checks the code
-with Ruff, and builds a Windows PyInstaller one-folder artifact. The bundled
-[package smoke](src/app/demo/package_smoke.py) exercises fixture load, reference correction, export, and reload from
-the frozen executable and records `live_hardware_used: false`. This is packaging evidence, not a certified release
-or a live-VISA test.
+Run the 168 hardware-free tests and the lint check:
 
-## Architecture
+```bash
+PYTHONPATH=src python -m unittest discover -s tests
+python -m ruff check src/app tests scripts
+```
+
+Settings, automatic saves and logs go under a per-user root (macOS `~/Library/Application Support/Auto-Load-off-Test`,
+Windows `%APPDATA%/Auto-Load-off-Test`, Linux `$XDG_DATA_HOME/Auto-Load-off-Test` or
+`~/.local/share/Auto-Load-off-Test`). `AUTO_LOAD_OFF_TEST_ROOT` overrides this root. The
+[packaging guide](docs/packaging.md) covers the Windows one-folder build.
+
+## Design and results
+
+For each frequency point the program sets the generator, captures the response on the oscilloscope, and computes
+gain and phase, optionally corrected against a reference curve.
+
+**Read back, use the read value, warn.** Instruments can accept a setting yet silently do something else. For
+example, some generators asked for a frequency above their limit stop at the limit without an error. The 2025
+version therefore reads back key settings (oscilloscope range and offset, generator amplitude and frequency), uses
+the values it read, and warns when one is outside a tolerance. The 2026 version still reads back generator frequency
+and amplitude and warns on a mismatch, but no longer reads back the oscilloscope range and offset after setting them.
+
+**Acquisition off the UI thread.** Acquisition runs on a worker thread with queues and stop events, so the window
+stays responsive and a sweep can be stopped.
+
+**Output.** Results export as MAT, TXT and CSV, with plots. The export formats and plots were adjusted from operator
+feedback. In the 2026 version, exports do not silently replace existing output.
+
+**2026 structure.** The main branch separates the operator UI, use cases, sweep and signal-processing logic,
+persistence, and instrument adapters:
 
 ```mermaid
 flowchart LR
@@ -121,124 +123,73 @@ flowchart LR
   STORE --> FILES["MAT / CSV / TXT / PNG"]
 ```
 
-The dependency direction keeps the domain and most application behavior independent from Tkinter, PyVISA, and the
-legacy driver module. More detail is available in the [architecture note](docs/architecture.md) and
-[case study](docs/case_study.md).
+- Application code depends on [AWG/oscilloscope ports](src/app/application/ports/instruments.py). A
+  [capability registry](src/app/domain/instrument_capabilities.py) holds model limits, and the
+  [adapter registry](src/app/infrastructure/instruments/adapter_registry.py) picks production or fake adapters. The
+  driver file [`equips.py`](src/equips.py) is kept as an isolated compatibility layer rather than rewritten without
+  a physical test bench.
+- [Boundary validation](src/app/domain/data_validation.py) rejects missing fields, length mismatches, non-finite
+  gain, and non-positive, duplicate or unsorted frequencies. The
+  [end-to-end workflow test](tests/test_hardware_free_workflow.py) rebuilds corrected gain and phase from raw and
+  reference curves, exports MAT/CSV/TXT, and reloads them.
+- The [offline analysis command](docs/offline_analysis.md) runs without Tkinter or PyVISA and writes data exports,
+  a plot, an HTML report and a hashed JSON manifest.
+- [GitHub Actions](.github/workflows/ci.yml) runs the tests on Linux, macOS and Windows, runs Ruff, and builds a
+  Windows PyInstaller one-folder package with a [package smoke](src/app/demo/package_smoke.py) that records
+  `live_hardware_used: false`.
 
-## Validation Evidence
-
-| Surface | Current evidence | What it does not prove |
-| --- | --- | --- |
-| Sweep, DSP, calibration, and IO | Automated tests using pure logic, temporary files, deterministic arrays, and fake ports. | Instrument timing, acquisition fidelity, or calibration uncertainty. |
-| Operator workflow | Actual Tkinter window capture from 0/72 through 72/72 with source, correction, progress, and export receipts. | A live sweep or connected-instrument workflow. |
-| Resource discovery and adapter selection | Mock scanners, identity probes, capability preflight, and registry/factory tests. | Real VISA enumeration, `*IDN?` behavior, or firmware compatibility. |
-| Windows packaging | CI-built one-folder executable plus frozen fixture/export/reload smoke. | Driver installation, code signing, every Windows theme, or live VISA access. |
-| Stop and output-off flow | Fake-port tests for cancellation, cleanup attempts, timeouts, and warning events. | Electrical shutdown latency or fail-safe behavior on hardware. |
-| Live bench and metrology | No current public validation record. | Any claim of live-instrument, metrology-grade, or production-certified operation. |
-
-The detailed [validation matrix](docs/validation_matrix.md) maps each claim to inspectable evidence and lists wording
-that is not supported by the repository.
-
-## Reproduce
-
-### Analyze measurement files without hardware
-
-```bash
-python -m pip install -e .
-auto-load-off-test analyze demo_data/simulated_sweep_fixture.mat --output __data__/analysis-demo
-```
-
-Open `__data__/analysis-demo/report.html` to inspect the data, plot, processing notes, and input hashes. The command
-runs without Tkinter or instrument connections and produces MAT/CSV/TXT, PNG, HTML, and a JSON manifest. Optional
-reference correction has explicit coverage and phase checks. See the [offline analysis guide](docs/offline_analysis.md)
-for raw-fixture reconstruction, input formats, reproducibility assumptions, and error behavior.
-
-### Install and launch
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e .
-python src/main.py
-```
-
-On Windows, activate the environment with `.venv\Scripts\activate` before installing. The installed console entry
-point is also available as `auto-load-off-test`.
-
-To inspect the workflow without instruments, select **Load Demo Fixture**, then **Replay Fixture**. Stop partway
-or choose 1x / 2x / 4x playback. In **Analysis**, choose `raw` + `complex` to reconstruct the fixture using its bundled
-reference, then **Apply Analysis**. **Reset Analysis** restores the original file snapshot. **Export Report** saves
-the displayed result and its reproducibility record to a new directory. The no-hardware label remains explicit.
-
-### Run the hardware-free checks
-
-```bash
-PYTHONPATH=src python -m unittest discover -s tests
-python -m ruff check src/app tests scripts
-```
-
-The automated suite covers sweep generation, DSP, capability validation, adapter/discovery fakes, strict
-measurement/reference schemas, deterministic correction and export round trips, UI receipt state, task-runner
-cleanup, and the package smoke.
-
-## Instrument Paths
-
-UI-visible capability profiles and legacy-compatible adapter paths currently exist for:
+Registered instrument paths:
 
 | Role | Registered models |
 | --- | --- |
 | AWG | `DSG4102`, `DSG836` |
 | Oscilloscope | `MDO34`, `MDO3024`, `DHO1202`, `DHO1204` |
 
-These names describe registered software paths, not a current live-hardware compatibility certificate. Model limits,
-termination, coupling, transport, and validation status are defined in the
-[capability registry](src/app/domain/instrument_capabilities.py). Test-only mock models are hidden from the UI.
+These names describe registered software paths, not a current live-hardware compatibility certificate.
 
-## Data And Runtime Paths
+**Testing.** The company's test engineers tested the 2025 program on instruments before its engineers used it. The
+2026 main branch adds 168 hardware-free tests.
 
-**Save Data** writes the displayed numeric result as MAT/CSV/TXT. **Export Report** adds a PNG, HTML report, input
-snapshots, and a SHA-256 manifest. Neither action silently replaces existing output. Imported/fixture data is not
-exported with unrelated instrument settings from the setup form.
-
-Settings, automatic saves, and rotating diagnostic logs live under a stable per-user application-data root:
-
-| OS | Root |
-| --- | --- |
-| macOS | `~/Library/Application Support/Auto-Load-off-Test` |
-| Windows | `%APPDATA%/Auto-Load-off-Test` |
-| Linux | `$XDG_DATA_HOME/Auto-Load-off-Test` or `~/.local/share/Auto-Load-off-Test` |
-
-```text
-__config__/settings.json
-__data__/measurement/
-__data__/logs/sweep-events.jsonl
-```
-
-`AUTO_LOAD_OFF_TEST_ROOT` overrides this root. Existing cwd-based settings are not silently migrated. Bundled demo
-resources resolve independently, including after a wheel install. See
-the [packaging guide](docs/packaging.md) for Windows prerequisites and the no-hardware smoke checklist.
-
-## Technical Documentation
+Further documents:
 
 | Topic | Document |
 | --- | --- |
 | Design decisions and tradeoffs | [Case Study](docs/case_study.md) |
 | Layer boundaries and dependencies | [Architecture](docs/architecture.md) |
 | Evidence levels and unsupported claims | [Validation Matrix](docs/validation_matrix.md) |
-| Setup, replay, run, correction, and export | [Operator Guide](docs/operator_guide.md) |
+| Setup, replay, run, correction and export | [Operator Guide](docs/operator_guide.md) |
 | Stop behavior and operator responsibilities | [Safety Notes](docs/safety.md) |
-| Adding adapters, persistence, or UI behavior | [Extending The Application](docs/extending.md) |
+| Adding adapters, persistence or UI behavior | [Extending The Application](docs/extending.md) |
 | Windows one-folder build and prerequisites | [Packaging](docs/packaging.md) |
 | Deterministic fixture design and provenance | [Demo Fixture](docs/demo_fixture.md) / [Demo Data](demo_data/README.md) |
 
-## Scope And Safety
+## Limits
+
+> **Validation boundary:** automated tests and demonstration evidence are hardware-free. Production adapter paths are inspectable, but
+> this repository does not claim current live AWG/oscilloscope, metrology, or production-safety validation.
+
+The 2026 tests use pure logic, temporary files, deterministic arrays and fake instrument ports. They do not prove
+instrument timing, acquisition fidelity, calibration uncertainty, real VISA enumeration, firmware compatibility,
+electrical output-off latency or safe operation of a device under test. macOS is the UI acceptance target for the
+current iteration; Windows UI validation is not implied by the cross-platform tests or the packaging check.
 
 This is a local engineering tool, not a certified production test platform. Before any live run, an operator must
-confirm the physical instrument model and address, probe attenuation, voltage and frequency limits, termination,
-coupling, trigger behavior, and device-under-test constraints.
+confirm the instrument model and address, probe attenuation, voltage and frequency limits, termination, coupling,
+trigger behavior and device-under-test constraints. See the [validation matrix](docs/validation_matrix.md) and
+[safety notes](docs/safety.md).
 
-Current evidence demonstrates software architecture, deterministic data handling, operator-state design, and
-hardware-free distribution testing. Live VISA discovery, model/firmware compatibility, electrical output-off
-latency, measurement uncertainty, calibration traceability, and safe DUT operation require a documented physical
-bench matrix and remain intentionally unclaimed. See [docs/safety.md](docs/safety.md) for the full boundary.
+## Who wrote what
+
+- **2025 version, tag [v0.1.0](https://github.com/lishehao/auto-load-off-test/tree/v0.1.0).** During my internship
+  at Intalight (July to September 2025), I (Shehao Li) was the sole developer of this program. I wrote 3,100+ lines
+  of it by hand, with only light code completion and no coding agent. Part of the instrument-driver file (`equips`)
+  came from other people; the parts for the instruments listed above, the measurement logic and the UI are mine.
+- **2026 version, the main branch.** A restructuring of the same program, written by a coding agent to my
+  specification. It added the 168 hardware-free tests.
+
+The code is open-sourced with the company's permission. Case study:
+[lishehao.github.io/projects/auto-load-off-test](https://lishehao.github.io/projects/auto-load-off-test/).
+
+## License
+
+No license has been chosen yet.
